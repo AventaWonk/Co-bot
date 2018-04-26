@@ -1,58 +1,59 @@
 package com.greatCouturierGame;
 
-import java.io.*;
+import java.io.IOException;
 import java.math.BigInteger;
-import java.net.Socket;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Client {
-    private Socket socket;
-    private PrintWriter out;
-    private InputStream in;
-    private String key = "";
-    private int serverLag;
+    private GameSocketClient gsc;
+    private String userKey;
+    private int latency;
     private Map<String, String> connectData;
 
     Client(String uid, String authToken) {
         try {
-            this.socket = new Socket("109.234.153.253", 33333);
-            this.out = new PrintWriter(socket.getOutputStream());
-            this.in = socket.getInputStream();
+            final String host = "109.234.153.253";
+            final int port = 33333;
 
+            this.gsc = new GameSocketClient(host, port);
             this.sendCommand("SyncTime");
-            Thread.sleep(1000);
 
-            String receivedData = this.receiveData();
-            List<String> responseTypes = this.getResponseTypes(receivedData);
-
-            String serverTime = this.getParam(receivedData,"ServerTime");
-            this.serverLag = (int) (new Date().getTime() - Long.parseLong(serverTime));
-
-            try {
-                String connectData = "Id:"+ uid +";Pass:"+ authToken +";Friends:;MissionBonus:0";
-                this.sendCommand("Connect", connectData);
-                Thread.sleep(1000);
-
-                receivedData = this.receiveData();
-                responseTypes = this.getResponseTypes(receivedData);
-                this.key = this.getParam(receivedData,"Key");
-            } catch (Exception e) {
-                e.printStackTrace();
-                System.exit(0);
+            final Map<String, String> receivedCommands = gsc.receiveData();
+            final String syncTimeResponse = receivedCommands.get("SyncTimeResponse");
+            if (syncTimeResponse == null) {
+                throw new Exception("Sync time error");
             }
 
-            this.connectData = new HashMap<>();
-            this.connectData.put("Name", this.getParam(receivedData, "Name"));
-            this.connectData.put("Rating", this.getParam(receivedData, "Rating"));
-            this.connectData.put("SkillData", this.getParam(receivedData, "PumpRatingCooldowns"));
-            this.connectData.put("Dollars", this.getParam(receivedData, "Dollars"));
-            this.connectData.put("NextDollarsTime", this.getParam(receivedData, "NextDollarsTime"));
-            this.connectData.put("Ids", this.getParam(receivedData, "Ids3"));
+            final long serverTime = Long.parseLong(GameSocketClient.getParam(syncTimeResponse, "ServerTime"));
+            this.latency = (int) (new Date().getTime() - serverTime);
 
-            if (responseTypes.contains("CanResearchResponse")) {
-                this.connectData.put("TechIds", this.getParam(receivedData, "TechIds"));
+            final String connectCommandData = "Id:"+ uid +";Pass:"+ authToken +";Friends:;MissionBonus:0";
+            this.sendCommand("Connect", connectCommandData);
+
+            receivedCommands.putAll(gsc.receiveData());
+            final String connectResponse = receivedCommands.get("ConnectResponse");
+            if (connectResponse == null) {
+                throw new Exception("Connect error");
+            }
+
+            this.userKey = GameSocketClient.getParam(connectResponse, "Key");
+            this.connectData = new HashMap<>();
+            this.connectData.put("Name", GameSocketClient.getParam(connectResponse, "Name"));
+            this.connectData.put("Rating", GameSocketClient.getParam(connectResponse, "Rating"));
+            this.connectData.put("SkillData", GameSocketClient.getParam(connectResponse, "PumpRatingCooldowns"));
+            this.connectData.put("Dollars", GameSocketClient.getParam(connectResponse, "Dollars"));
+            this.connectData.put("NextDollarsTime", GameSocketClient.getParam(connectResponse, "NextDollarsTime"));
+
+            final String topResponse = receivedCommands.get("TopResponse");
+            this.connectData.put("Ids", GameSocketClient.getParam(topResponse, "Ids3"));
+
+            if (receivedCommands.containsKey("CanResearchResponse")) {
+                final String canResearchResponse = receivedCommands.get("CanResearchResponse");
+                this.connectData.put("TechIds", GameSocketClient.getParam(canResearchResponse, "TechIds"));
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -60,104 +61,39 @@ public class Client {
         }
     }
 
-    public long getServerTime() {
-        return new Date().getTime() + this.serverLag;
-    }
-
-    public int getServerLag() {
-        return this.serverLag;
+    public int getLatency() {
+        return this.latency;
     }
 
     public Map<String, String> getConnectData() {
         return this.connectData;
     }
 
-    public void stop() {
+    public void close() {
         try {
-            this.in.close();
-            this.out.close();
-            this.socket.close();
+            this.gsc.close();
         } catch (Exception e) {
             e.printStackTrace();
             System.exit(0);
         }
     }
 
-    public String receiveData() throws Exception {
-        if (!this.socket.isConnected()) {
-            throw new Exception("Disconnected");
-        }
+    public void sendCommand(String commandType, String commandData) throws IOException, NoSuchAlgorithmException {
+        final String command = "Type:"+ commandType +";"+ commandData;
+        final String sigCommand = this.getSignatureOfString(command) + command;
 
-        int dataSize = 0;
-        dataSize = in.available();
-        byte byteData[] = new byte[dataSize];
-        int receivedSize = in.read(byteData);
-
-        if (receivedSize == 0) {
-            throw new Exception("Reader error");
-        }
-
-        return new String(byteData);
+        this.gsc.sendCommand(sigCommand);
     }
 
-    public List<String> getResponseTypes(String response) throws Exception {
-        List<String> responseTypes = new ArrayList<>();
+    public void sendCommand(String commandType) throws IOException, NoSuchAlgorithmException {
+        final String command = "Type:"+ commandType;
+        final String sigCommand = this.getSignatureOfString(command) + command;
 
-        String typeTag = "Type:";
-        int indTypeTag = 0;
-        int indSemicolon = 0;
-        while ((indTypeTag = response.indexOf(typeTag, indTypeTag)) != -1) {
-            indSemicolon = response.indexOf(";", indSemicolon);
-            String type = response.substring(indTypeTag + typeTag.length(), indSemicolon);
-            responseTypes.add(type);
-        }
-
-        if (responseTypes.size() < 1) {
-            throw new Exception("Hasn't types error");
-        }
-
-        return responseTypes;
+        this.gsc.sendCommand(sigCommand);
     }
 
-    public String getParam(String response, String param) throws Exception {
-        String paramWithCol = param + ":";
-        int indParam = response.indexOf(paramWithCol);
-        int indSemicolon = response.indexOf(";", indParam);
-        if (indParam == -1) {
-            throw new Exception("Tag not found! \n Res: "+response+"\n"+param);
-        }
-
-        if (indSemicolon == -1 ) {
-            return response.substring(indParam + paramWithCol.length());
-        }
-
-        return response.substring(indParam + paramWithCol.length(), indSemicolon);
-    }
-
-    public void sendCommand(String commandType, String commandData) throws IOException, InterruptedException, NoSuchAlgorithmException {
-        String command = "Type:"+ commandType +";"+ commandData;
-        String sigCommand = this.getSignatureOfString(command) + command;
-
-        byte[] byteString = sigCommand.getBytes("UTF-8");
-        BufferedOutputStream ou = new BufferedOutputStream(this.socket.getOutputStream(), byteString.length + 10);
-        ou.write(byteString);
-        ou.write((byte) 0x00);
-        ou.flush();
-
-        Thread.sleep(200);
-    }
-
-    private void sendCommand(String commandType) throws IOException, InterruptedException, NoSuchAlgorithmException {
-        String command = "Type:"+ commandType;
-        String sigCommand = this.getSignatureOfString(command) + command;
-
-        byte[] byteString = sigCommand.getBytes("UTF-8");
-        BufferedOutputStream ou = new BufferedOutputStream(this.socket.getOutputStream(), byteString.length + 10);
-        ou.write(byteString);
-        ou.write((byte) 0x00);
-        ou.flush();
-
-        Thread.sleep(200);
+    public Map<String, String> receiveData() {
+        return gsc.receiveData();
     }
 
     private String getSignatureOfString(String commandString) throws NoSuchAlgorithmException {
@@ -190,7 +126,9 @@ public class Client {
         return signature.toString();
     }
     private String getSalt() throws NoSuchAlgorithmException {
-        return getMD5(this.key + "33333");
+        final String serverKey = "33333";
+
+        return getMD5(this.userKey + serverKey);
     }
     private static String getMD5(String s) throws NoSuchAlgorithmException {
         MessageDigest md5MessageDigest = MessageDigest.getInstance("MD5");
