@@ -10,6 +10,7 @@ import java.util.Random;
 
 public class GameGateway {
 
+    private String uid;
     private GameSocketClient gsc;
     private long latency;
     private String userKey;
@@ -24,6 +25,7 @@ public class GameGateway {
         final String host = "109.234.153.253";
         final int port = 33333;
 
+        this.uid = uid;
         this.gsc = new GameSocketClient(host, port);
         try {
             this.syncTimeWithServer();
@@ -157,12 +159,9 @@ public class GameGateway {
             this.gsc.sendCommand("CheckContest");
             Map<String, String> responseResultData = this.gsc.receiveData();
 
-            if (responseResultData.containsKey("")) {
+            if (responseResultData.containsKey("SelectPodiumClassResponse")) {
                 this.gsc.sendCommand("SelectPodiumClass", "PodiumClass:1");
                 responseResultData = this.gsc.receiveData();
-                if (!responseResultData.containsKey("SelectPodiumClassResponse")) {
-                    throw new IOException("");
-                }
             }
 
             Random rnd = new Random(System.currentTimeMillis());
@@ -177,7 +176,7 @@ public class GameGateway {
                 Thread.sleep(988);
             }
 
-            if (!responseResultData.containsKey("CanPodiumResponse")) {
+            if (responseResultData.containsKey("CanPodiumResponse")) {
                 this.gsc.sendCommand("EnterPodium");
                 responseResultData = this.gsc.receiveData();
             }
@@ -191,14 +190,60 @@ public class GameGateway {
         }
     }
 
-    public void checkPodiumStatus() {
+    public void checkPodiumStatus() throws IOException {
         this.gsc.sendCommand("CheckContest");
-        "PodiumStatusResponse"
+        Map <String, String> responseResultData = this.gsc.receiveData();
+        if (!responseResultData.containsKey("PodiumStatusResponse")) {
+            return;
+        }
+
+        final String podiumStatusResponse = responseResultData.get("PodiumStatusResponse");
+        final String[] ids = GameSocketClient.getParam(podiumStatusResponse, "Ids").split("_");
+        int gamerPosition = Arrays.binarySearch(ids, this.uid);
+        String place;
+        if (gamerPosition > 0) {
+            place = GameSocketClient.getParam(podiumStatusResponse, "Places").split("_")[gamerPosition];
+        }
+
+        Long podiumFinishTime =  Long.parseLong(GameSocketClient.getParam(podiumStatusResponse, "PodiumFinishTime"));
+        if (podiumFinishTime == -1 || podiumFinishTime > new Date().getTime()) {
+            return;
+        }
+
         this.gsc.sendCommand("EndPodium");
-        "ConfirmResponse"
-        this.gsc.sendCommand("CheckContest");
-        "SelectPodiumClassResponse"
+        responseResultData = this.gsc.receiveData();
+        if (!responseResultData.containsKey("ConfirmResponse")) {
+            throw new IOException("");
+        }
     }
+
+    public void checkShopStatus() throws IOException {
+        this.gsc.sendCommand("ShopSellStatus");
+        Map <String, String> responseResultData = this.gsc.receiveData();
+        if (!responseResultData.containsKey("ShopSellStatusResponse")) {
+            throw new IOException("");
+        }
+
+        final String shopSellStatusResponse = responseResultData.get("ShopSellStatusResponse");
+//        String[] soldWearCosts = GameSocketClient.getParam(shopSellStatusResponse, "SellWearCosts").split("_");
+        final String soldWearIdsParam = GameSocketClient.getParam(shopSellStatusResponse, "SellWearIds");
+        if (soldWearIdsParam.isEmpty()) {
+            return;
+        }
+
+        String[] soldWearIds = soldWearIdsParam.split("_");
+        for (String soldWearId : soldWearIds) {
+            this.gsc.sendCommand("ShopSoldWear", "WearId:"+ soldWearId);
+            responseResultData = this.gsc.receiveData();
+            if (!responseResultData.containsKey("ConfirmResponse")) {
+                throw new IOException("");
+            }
+        }
+    }
+
+//    public String createWear() {
+//        "CreateWear", WearId:;WearType:;WearColor:;WearTexture:;WearTextureColor:;WearTextureParams:;WearTexture2:;WearTextureColor2:;WearTextureParams2:
+//    }
 
     public boolean isPodiumAvailable() {
         return new Date().getTime() + this.latency > this.podiumFinishTime;
