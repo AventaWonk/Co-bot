@@ -4,12 +4,14 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class Bot implements Runnable {
 
     private String uid;
     private String authToken;
     private GameGateway gameApi;
+    private long[] skillNextTime = {-1, -1, -1, -1};
     private static Logger logger = Main.getLogger();
 
     Bot(String uid, String authToken) {
@@ -21,9 +23,11 @@ public class Bot implements Runnable {
 
         while (true) {
             final GameGateway gameApi = new GameGateway(uid, authToken);
-            this.gameApi = gameApi;
-            final long[] sat = gameApi.getSkillsAvailabilityTime();
             final long currentTime = new Date().getTime();
+            this.gameApi = gameApi;
+            if (this.skillNextTime[0] == -1) {
+                this.skillNextTime = gameApi.getSkillsAvailabilityTime();
+            }
 
             if (gameApi.isPodiumShouldResolve()) {
                 try {
@@ -42,16 +46,16 @@ public class Bot implements Runnable {
             }
 
             for (int i = 0; i < 5; i++) {
-                final long skillAvTime = sat[i];
+                final long skillAvTime = this.skillNextTime[i];
                 if (skillAvTime > currentTime) {
-//                    final int skillCooldown = (int) Math.ceil((skillAvTime - currentTime) / 1000);
                     continue;
                 }
 
                 // New type (podium) availability check
                 if (gameApi.isNewTypesAvailable()) {
                     String[] availableTypesIds = gameApi.getAvailableTypesIds();
-                    gameApi.researchNewType(availableTypesIds[0]);
+                    final int typeId = ThreadLocalRandom.current().nextInt(availableTypesIds.length);
+                    gameApi.researchNewType(availableTypesIds[typeId]);
                     logger.info("New type successfully researched");
                 }
 
@@ -64,11 +68,12 @@ public class Bot implements Runnable {
 
                 try {
                     final int taskTimeInc = gameApi.doTask(i);
-                    sat[i] = new Date().getTime() + taskTimeInc + 3000;
+                    final int generatedTimeInc = ThreadLocalRandom.current().nextInt(5000, 25000);
+                    this.skillNextTime[i] = new Date().getTime() + taskTimeInc + generatedTimeInc;
                     logger.info("Skill №" + (i+1) + " was successfully applied!");
 
-                    // Simulate gamers reaction time
-                    Thread.sleep(2400);
+                    // Simulate gamers reaction time before next skill
+                    Thread.sleep(ThreadLocalRandom.current().nextInt(1500, 5000));
                 } catch (Exception e) {
                     logger.error(e);
                     System.exit(0);
@@ -78,19 +83,19 @@ public class Bot implements Runnable {
 
             int soonSkillNumber = 0;
             for (int i = 1; i < 5; i++) {
-                final long skillAvTime = sat[i];
-                if (skillAvTime < sat[soonSkillNumber] && skillAvTime > currentTime) {
+                final long skillAvTime = this.skillNextTime[i];
+                if (skillAvTime < this.skillNextTime[soonSkillNumber] && skillAvTime > currentTime) {
                     soonSkillNumber = i;
                 }
             }
 
-            long soonSkillAvTime = sat[soonSkillNumber] - new Date().getTime();
-            logger.info("Skill №"+ (soonSkillNumber+1) +". Waiting "+ Bot.getFormattedTime(soonSkillAvTime/1000) + "\n");
+            long soonSkillAvTime = this.skillNextTime[soonSkillNumber] - new Date().getTime();
+            logger.info("Skill №"+ (soonSkillNumber+1) +". Waiting "+ Bot.getFormattedTime(soonSkillAvTime/1000));
             gameApi.closeGame();
 
             try {
                 gameApi.closeGame();
-                Thread.sleep(soonSkillAvTime + 10000);
+                Thread.sleep(soonSkillAvTime);
             } catch (InterruptedException e) {
                 logger.error(e);
             }
