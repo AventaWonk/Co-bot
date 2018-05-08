@@ -1,7 +1,5 @@
 package com.greatCouturierGame;
 
-import org.apache.logging.log4j.Logger;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Date;
@@ -18,8 +16,9 @@ public class GameGateway {
     private String[] topShopsIds;
     private String[] availableTechsIds = null;
     private String[] availableTypesIds = null;
+    private int nextWearId = 0;
     private long podiumFinishTime;
-    private static Logger logger = Main.getLogger();
+    private boolean podiumFinishFlag;
 
     GameGateway(String uid, String authToken) {
         final String host = "109.234.153.253";
@@ -32,7 +31,7 @@ public class GameGateway {
             this.connectToServer(uid, authToken);
         } catch (IOException e) {
             this.gsc.close();
-            logger.fatal(e);
+            Main.logger.fatal(e);
             System.exit(0);
         }
         this.gsc.setUserKey(userKey);
@@ -53,6 +52,7 @@ public class GameGateway {
         final String userKey = GameSocketClient.getParam(connectResponse, "Key");
 //        final String name = GameSocketClient.getParam(connectResponse, "Name");
         final String podiumFinishTime = GameSocketClient.getParam(connectResponse, "PodiumFinishTime");
+        final String podiumFinishFlag = GameSocketClient.getParam(connectResponse, "BodyPodiumWearIds");
 //        final String rating = GameSocketClient.getParam(connectResponse, "Rating");
         final String pumpRatingCooldowns = GameSocketClient.getParam(connectResponse, "PumpRatingCooldowns");
 //        final String dollars = GameSocketClient.getParam(connectResponse, "Dollars");
@@ -78,6 +78,7 @@ public class GameGateway {
         this.availableTechsIds = availableTechsIds;
         this.availableTypesIds = availableTypesIds;
         this.podiumFinishTime = Long.parseLong(podiumFinishTime);
+        this.podiumFinishFlag = podiumFinishFlag.isEmpty();
     }
 
     public void syncTimeWithServer() throws IOException {
@@ -88,14 +89,11 @@ public class GameGateway {
         }
 
         final String syncTimeResponse = receivedData.get("SyncTimeResponse");
-
-        // Parse data
         final long serverTime = Long.parseLong(GameSocketClient.getParam(syncTimeResponse, "ServerTime"));
-
         this.latency = new Date().getTime() - serverTime;
     }
 
-    public int doTask(int taskNumber) throws InterruptedException, IOException {
+    public int doTask(int taskNumber) throws IOException {
         final String selectedTaskId = GameGateway.getTaskIdByNumber(taskNumber);
         final int selectedTaskInc = GameGateway.getTaskIncByNumber(taskNumber);
 
@@ -110,7 +108,11 @@ public class GameGateway {
         }
 
         // Simulate gamers reaction time
-        Thread.sleep(2121);
+        try {
+            Thread.sleep(2121);
+        } catch (InterruptedException e) {
+            System.exit(0);
+        }
 
         this.gsc.sendCommand("CatchMoney", "Money:1");
         responseResultData.putAll(this.gsc.receiveData());
@@ -139,7 +141,7 @@ public class GameGateway {
             this.gsc.sendCommand("Research", "TechId:" + techId);
             this.availableTechsIds = null;
         } catch (Exception e) {
-            logger.error(e);
+            Main.logger.error(e);
             System.exit(0);
         }
     }
@@ -149,48 +151,12 @@ public class GameGateway {
             this.gsc.sendCommand("ResearchType", "TechId" + techId);
             this.availableTypesIds = null;
         } catch (Exception e) {
-            logger.error(e);
+            Main.logger.error(e);
             System.exit(0);
         }
     }
 
-    public void enterPodium() {
-        try {
-            this.gsc.sendCommand("CheckContest");
-            Map<String, String> responseResultData = this.gsc.receiveData();
-
-            if (responseResultData.containsKey("SelectPodiumClassResponse")) {
-                this.gsc.sendCommand("SelectPodiumClass", "PodiumClass:1");
-                responseResultData = this.gsc.receiveData();
-            }
-
-            Random rnd = new Random(System.currentTimeMillis());
-            while (responseResultData.containsKey("VotingEnterResponse")) {
-                final String votingEnterResponse = responseResultData.get("VotingEnterResponse");
-                String[] availableModelsIds = GameSocketClient.getParam(votingEnterResponse, "Ids").split("_");
-                String selectedModelId = availableModelsIds[rnd.nextInt(availableModelsIds.length)];
-                this.gsc.sendCommand("Vote", "UserId:" + selectedModelId);
-                responseResultData = this.gsc.receiveData();
-
-                // Simulate gamers reaction time
-                Thread.sleep(988);
-            }
-
-            if (responseResultData.containsKey("CanPodiumResponse")) {
-                this.gsc.sendCommand("EnterPodium");
-                responseResultData = this.gsc.receiveData();
-            }
-
-            if (!responseResultData.containsKey("PodiumStatusResponse")) {
-                throw new IOException("");
-            }
-        } catch (Exception e) {
-            logger.fatal(e);
-            System.exit(0);
-        }
-    }
-
-    public void checkPodiumStatus() throws IOException {
+    public void resolvePodiumStatus() throws IOException {
         this.gsc.sendCommand("CheckContest");
         Map <String, String> responseResultData = this.gsc.receiveData();
         if (!responseResultData.containsKey("PodiumStatusResponse")) {
@@ -200,8 +166,8 @@ public class GameGateway {
         final String podiumStatusResponse = responseResultData.get("PodiumStatusResponse");
         final String[] ids = GameSocketClient.getParam(podiumStatusResponse, "Ids").split("_");
         int gamerPosition = Arrays.binarySearch(ids, this.uid);
-        String place;
-        if (gamerPosition > 0) {
+        String place = "";
+        if (gamerPosition >= 0) {
             place = GameSocketClient.getParam(podiumStatusResponse, "Places").split("_")[gamerPosition];
         }
 
@@ -215,9 +181,53 @@ public class GameGateway {
         if (!responseResultData.containsKey("ConfirmResponse")) {
             throw new IOException("");
         }
+
+        this.podiumFinishFlag = true;
+        this.podiumFinishTime = -1;
+
+        Main.logger.info("Podium was successfully ended! Place:" + place);
     }
 
-    public void checkShopStatus() throws IOException {
+    public void enterPodium() throws IOException {
+        this.gsc.sendCommand("CheckContest");
+        Map<String, String> responseResultData = this.gsc.receiveData();
+
+        if (responseResultData.containsKey("SelectPodiumClassResponse")) {
+            this.gsc.sendCommand("SelectPodiumClass", "PodiumClass:1");
+            responseResultData = this.gsc.receiveData();
+        }
+
+        Random rnd = new Random(System.currentTimeMillis());
+        while (responseResultData.containsKey("VotingEnterResponse")) {
+            final String votingEnterResponse = responseResultData.get("VotingEnterResponse");
+            String[] availableModelsIds = GameSocketClient.getParam(votingEnterResponse, "Ids").split("_");
+            String selectedModelId = availableModelsIds[rnd.nextInt(availableModelsIds.length)];
+            this.gsc.sendCommand("Vote", "UserId:" + selectedModelId);
+            responseResultData = this.gsc.receiveData();
+
+            // Simulate gamers reaction time
+            try {
+                Thread.sleep(988);
+            } catch (InterruptedException e) {
+                System.exit(0);
+            }
+        }
+
+        if (responseResultData.containsKey("CanPodiumResponse")) {
+            this.gsc.sendCommand("EnterPodium");
+            responseResultData = this.gsc.receiveData();
+        }
+
+        if (!responseResultData.containsKey("PodiumStatusResponse")) {
+            throw new IOException("");
+        }
+
+        this.podiumFinishFlag = false;
+
+        Main.logger.info("Podium was successfully entered!");
+    }
+
+    public void resolveShopStatus() throws IOException {
         this.gsc.sendCommand("ShopSellStatus");
         Map <String, String> responseResultData = this.gsc.receiveData();
         if (!responseResultData.containsKey("ShopSellStatusResponse")) {
@@ -241,12 +251,33 @@ public class GameGateway {
         }
     }
 
-//    public String createWear() {
-//        "CreateWear", WearId:;WearType:;WearColor:;WearTexture:;WearTextureColor:;WearTextureParams:;WearTexture2:;WearTextureColor2:;WearTextureParams2:
-//    }
+    public void createWear(Wear wear) throws IOException {
+        String commandData = "WearId:"+ this.nextWearId +";WearType:"+ wear.getWearType()
+                +";WearColor:"+ wear.getWearColor() +";WearTexture:"+ wear.getWearTexture()
+                +";WearTextureColor:"+ wear.getWearTextureColor() +";WearTextureParams:;WearTexture2:"+ wear.getWearTexture2()
+                +";WearTextureColor2:"+ wear.getWearTextureColor2() +";WearTextureParams2:";
+        this.gsc.sendCommand("CreateWear", commandData);
+        Map<String, String> responseResultData = this.gsc.receiveData();
+        if (!responseResultData.containsKey("ConfirmResponse")) {
+            throw new IOException("");
+        }
+        this.nextWearId++;
+    }
+
+    public void sellWear(int wearId) throws IOException {
+        this.gsc.sendCommand("ShopAddWear", "WearId:"+ wearId +";TimeHour:3;Password:");
+        Map<String, String> responseResultData = this.gsc.receiveData();
+        if (!responseResultData.containsKey("ConfirmResponse")) {
+            throw new IOException("");
+        }
+    }
 
     public boolean isPodiumAvailable() {
-        return new Date().getTime() + this.latency > this.podiumFinishTime;
+        return this.podiumFinishFlag && this.podiumFinishTime == -1;
+    }
+
+    public boolean isPodiumShouldResolve() {
+        return this.podiumFinishTime != -1 && this.podiumFinishTime < new Date().getTime();
     }
 
 
