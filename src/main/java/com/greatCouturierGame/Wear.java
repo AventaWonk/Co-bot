@@ -1,5 +1,7 @@
 package com.greatCouturierGame;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 public class Wear {
     private int wearType;
     private int wearColor;
@@ -53,6 +55,23 @@ public class Wear {
         return wearTextureParams2;
     }
 
+    public static Wear generateRandomWear(int[] maxWearTypes, int maxWearColor, int maxWearTexture, int maxWearTextureColor) {
+        int maxWearType = ThreadLocalRandom.current().nextInt(0, maxWearTypes.length);
+        int minWearType = maxWearType / 100 * 100 + 1;
+        int minWearColor = maxWearColor / 100 * 100 + 1;
+        int minWearTexture = maxWearTexture / 100 * 100 + 1;
+        int minWearTextureColor = maxWearTextureColor / 100 * 100 + 1;
+        int randomWearType = ThreadLocalRandom.current().nextInt(minWearType, maxWearType + 1);
+        int randomWearColor = ThreadLocalRandom.current().nextInt(minWearColor, maxWearColor + 1);
+        int randomWearTexture = ThreadLocalRandom.current().nextInt(minWearTexture, maxWearTexture + 1);
+        int randomWearTextureColor = ThreadLocalRandom.current().nextInt(minWearTextureColor, maxWearTextureColor + 1);
+
+        return new Builder(randomWearType, randomWearColor)
+                .setWearTexture(randomWearTexture)
+                .setWearTextureColor(randomWearTextureColor)
+                .build();
+    }
+
     public static class Builder {
         private int wearType;
         private int wearColor;
@@ -66,6 +85,8 @@ public class Wear {
         public Builder(int wearType, int wearColor) {
             this.wearType = wearType;
             this.wearColor = wearColor;
+            this.wearTexture2 = 200;
+            this.wearTextureColor2 = 801;
         }
 
         public Builder setWearType(int wearType) {
@@ -112,5 +133,4 @@ public class Wear {
             return new Wear(this);
         }
     }
-    
 }
