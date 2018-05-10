@@ -1,10 +1,8 @@
 package com.greatCouturierGame;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
+import java.util.stream.Stream;
 
 public class GameGateway {
 
@@ -16,6 +14,10 @@ public class GameGateway {
     private String[] topShopsIds;
     private String[] availableTechsIds = null;
     private String[] availableTypesIds = null;
+    private Set<Integer> maxWearTypesIds = new HashSet<>();
+    private int maxTextureId;
+    private int maxColorId;
+    private int maxTextureColorId;
     private int nextWearId = 0;
     private long podiumFinishTime;
     private boolean podiumFinishFlag;
@@ -23,18 +25,17 @@ public class GameGateway {
     GameGateway(String uid, String authToken) {
         final String host = "109.234.153.253";
         final int port = 33333;
-
         this.uid = uid;
         this.gsc = new GameSocketClient(host, port);
         try {
             this.syncTimeWithServer();
             this.connectToServer(uid, authToken);
+            this.gsc.setUserKey(userKey);
         } catch (IOException e) {
             this.gsc.close();
             Main.logger.fatal(e);
             System.exit(0);
         }
-        this.gsc.setUserKey(userKey);
     }
 
     public void connectToServer(String uid, String authToken) throws IOException {
@@ -49,34 +50,40 @@ public class GameGateway {
         final String topResponse = receivedData.get("TopResponse");
 
         // Parse data
-        final String userKey = GameSocketClient.getParam(connectResponse, "Key");
-//        final String name = GameSocketClient.getParam(connectResponse, "Name");
+        this.userKey = GameSocketClient.getParam(connectResponse, "Key");
+        final String nextWearId = GameSocketClient.getParam(connectResponse, "WearNextId");
         final String podiumFinishTime = GameSocketClient.getParam(connectResponse, "PodiumFinishTime");
         final String podiumFinishFlag = GameSocketClient.getParam(connectResponse, "BodyPodiumWearIds");
-//        final String rating = GameSocketClient.getParam(connectResponse, "Rating");
         final String pumpRatingCooldowns = GameSocketClient.getParam(connectResponse, "PumpRatingCooldowns");
-//        final String dollars = GameSocketClient.getParam(connectResponse, "Dollars");
-//        final String nextDollarsTime = GameSocketClient.getParam(connectResponse, "NextDollarsTime");
         final String topIds = GameSocketClient.getParam(topResponse, "Ids3");
-        String[] availableTechsIds = null;
-        String[] availableTypesIds = null;
+        final String[] wearData = GameSocketClient.getParam(connectResponse, "AvailableComponents").split("_");
+        final int[] availableComponentsMaxTypes = Stream.of(wearData).mapToInt(Integer::parseInt).toArray();
+        for (int id : availableComponentsMaxTypes) {
+            switch (id / 100) {
+                case 2:
+                    this.maxTextureId = id;
+                    break;
+                case 3:
+                    this.maxColorId = id;
+                    break;
+                case 8:
+                    this.maxTextureColorId = id;
+                    break;
+                default:
+                    if (id < 800 && id > 400) {
+                        this.maxWearTypesIds.add(id);
+                    }
 
-        if (receivedData.containsKey("CanResearchResponse")) {
-            final String canResearchResponse = receivedData.get("CanResearchResponse");
-            availableTechsIds = GameSocketClient.getParam(canResearchResponse, "TechIds").split("_");
+                        break;
+            }
         }
 
-        if (receivedData.containsKey("CanResearchTypeResponse")) {
-            final String canResearchTypeResponse = receivedData.get("CanResearchTypeResponse");
-            availableTypesIds = GameSocketClient.getParam(canResearchTypeResponse, "TechIds").split("_");
-        }
+        this.testRe(receivedData);
 
         // Set connection data fields
-        this.userKey = userKey;
+        this.nextWearId = Integer.parseInt(nextWearId);
         this.topShopsIds = topIds.split("_");
         this.skillsAvailabilityTime = this.parseSkillsAvailableTime(pumpRatingCooldowns);
-        this.availableTechsIds = availableTechsIds;
-        this.availableTypesIds = availableTypesIds;
         this.podiumFinishTime = Long.parseLong(podiumFinishTime);
         this.podiumFinishFlag = podiumFinishFlag.isEmpty();
     }
@@ -121,17 +128,7 @@ public class GameGateway {
             throw new IOException("Bad response");
         }
 
-        if (responseResultData.containsKey("CanResearchResponse")) {
-            final String canResearchResponse = responseResultData.get("CanResearchResponse");
-            this.availableTechsIds = GameSocketClient.getParam(canResearchResponse, "TechIds").split("_");
-        }
-
-        if (responseResultData.containsKey("CanResearchTypeResponse")) {
-            final String canResearchTypeResponse = responseResultData.get("CanResearchTypeResponse");
-            this.availableTypesIds = GameSocketClient.getParam(canResearchTypeResponse, "TechIds").split("_");
-        }
-
-//                this.modelRating += taskNumber;
+        testRe(responseResultData);
 
         return selectedTaskInc;
     }
@@ -306,8 +303,36 @@ public class GameGateway {
         return availableTechsIds;
     }
 
+    public int[] getMaxWearTypesIds() {
+        return maxWearTypesIds.stream().mapToInt(Integer::intValue).toArray();
+    }
+
+    public int getMaxTextureId() {
+        return maxTextureId;
+    }
+
+    public int getMaxColorId() {
+        return maxColorId;
+    }
+
+    public int getMaxTextureColorId() {
+        return maxTextureColorId;
+    }
+
     public void closeGame() {
         this.gsc.close();
+    }
+
+    private void testRe(Map<String, String> responseResultData) {
+        if (responseResultData.containsKey("CanResearchResponse")) {
+            final String canResearchResponse = responseResultData.get("CanResearchResponse");
+            this.availableTechsIds = GameSocketClient.getParam(canResearchResponse, "TechIds").split("_");
+        }
+
+        if (responseResultData.containsKey("CanResearchTypeResponse")) {
+            final String canResearchTypeResponse = responseResultData.get("CanResearchTypeResponse");
+            this.availableTypesIds = GameSocketClient.getParam(canResearchTypeResponse, "TechIds").split("_");
+        }
     }
 
 //    private void tryToConnect(int count, int delay) throws IOException {
