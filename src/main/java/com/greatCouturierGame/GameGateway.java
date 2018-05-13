@@ -15,6 +15,8 @@ public class GameGateway {
     private String[] availableTechsIds = null;
     private String[] availableTypesIds = null;
     private Set<Integer> maxWearTypesIds = new HashSet<>();
+    private String[] sellingWearIds;
+    private long[] sellingWearEndTime;
     private int maxTextureId;
     private int maxColorId;
     private int maxTextureColorId;
@@ -51,11 +53,13 @@ public class GameGateway {
 
         // Parse data
         this.userKey = GameSocketClient.getParam(connectResponse, "Key");
+        this.sellingWearIds = GameSocketClient.getParam(connectResponse, "SellWearIds").split("_");
         final String nextWearId = GameSocketClient.getParam(connectResponse, "WearNextId");
+        final String[] sellingWearEndTime = GameSocketClient.getParam(connectResponse, "SellWearTimes").split("_");
         final String podiumFinishTime = GameSocketClient.getParam(connectResponse, "PodiumFinishTime");
         final String podiumFinishFlag = GameSocketClient.getParam(connectResponse, "BodyPodiumWearIds");
-        final String pumpRatingCooldowns = GameSocketClient.getParam(connectResponse, "PumpRatingCooldowns");
-        final String topIds = GameSocketClient.getParam(topResponse, "Ids3");
+        final String[] pumpRatingCooldowns = GameSocketClient.getParam(connectResponse, "PumpRatingCooldowns").split("_");
+        this.topShopsIds = GameSocketClient.getParam(topResponse, "Ids3").split("_");
         final String[] wearData = GameSocketClient.getParam(connectResponse, "AvailableComponents").split("_");
         final int[] availableComponentsMaxTypes = Stream.of(wearData).mapToInt(Integer::parseInt).toArray();
         for (int id : availableComponentsMaxTypes) {
@@ -73,17 +77,16 @@ public class GameGateway {
                     if (id < 800 && id > 400) {
                         this.maxWearTypesIds.add(id);
                     }
-
-                        break;
+                    break;
             }
         }
 
-        this.testRe(receivedData);
+        this.checkNewSkillAv(receivedData);
 
         // Set connection data fields
         this.nextWearId = Integer.parseInt(nextWearId);
-        this.topShopsIds = topIds.split("_");
-        this.skillsAvailabilityTime = this.parseSkillsAvailableTime(pumpRatingCooldowns);
+        this.sellingWearEndTime = this.parseServerTimeData(sellingWearEndTime);
+        this.skillsAvailabilityTime = this.parseServerTimeData(pumpRatingCooldowns);
         this.podiumFinishTime = Long.parseLong(podiumFinishTime);
         this.podiumFinishFlag = podiumFinishFlag.isEmpty();
     }
@@ -128,29 +131,19 @@ public class GameGateway {
             throw new IOException("Bad response");
         }
 
-        testRe(responseResultData);
+        checkNewSkillAv(responseResultData);
 
         return selectedTaskInc;
     }
 
-    public void researchNewTech(String techId) {
-        try {
-            this.gsc.sendCommand("Research", "TechId:" + techId);
-            this.availableTechsIds = null;
-        } catch (Exception e) {
-            Main.logger.error(e);
-            System.exit(0);
-        }
+    public void researchNewTech(String techId) throws IOException {
+        this.gsc.sendCommand("Research", "TechId:" + techId);
+        this.availableTechsIds = null;
     }
 
-    public void researchNewType(String techId) {
-        try {
-            this.gsc.sendCommand("ResearchType", "TechId" + techId);
-            this.availableTypesIds = null;
-        } catch (Exception e) {
-            Main.logger.error(e);
-            System.exit(0);
-        }
+    public void researchNewType(String techId) throws IOException {
+        this.gsc.sendCommand("ResearchType", "TechId" + techId);
+        this.availableTypesIds = null;
     }
 
     public void resolvePodiumStatus() throws IOException {
@@ -258,6 +251,7 @@ public class GameGateway {
         if (!responseResultData.containsKey("ConfirmResponse")) {
             throw new IOException("");
         }
+
         this.nextWearId++;
     }
 
@@ -319,11 +313,15 @@ public class GameGateway {
         return maxTextureColorId;
     }
 
+    public long[] getSellingWearEndTime() {
+        return sellingWearEndTime;
+    }
+
     public void closeGame() {
         this.gsc.close();
     }
 
-    private void testRe(Map<String, String> responseResultData) {
+    private void checkNewSkillAv(Map<String, String> responseResultData) {
         if (responseResultData.containsKey("CanResearchResponse")) {
             final String canResearchResponse = responseResultData.get("CanResearchResponse");
             this.availableTechsIds = GameSocketClient.getParam(canResearchResponse, "TechIds").split("_");
@@ -350,8 +348,8 @@ public class GameGateway {
 //        throw new IOException("");
 //    }
 
-    private long[] parseSkillsAvailableTime(final String skillData) {
-        return Arrays.stream(skillData.split("_")).mapToLong(
+    private long[] parseServerTimeData(final String[] serverTime) {
+        return Arrays.stream(serverTime).mapToLong(
                 (skillAvTime) -> Long.parseLong(skillAvTime) + this.latency
         ).toArray();
     }
