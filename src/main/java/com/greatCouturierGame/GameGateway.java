@@ -2,6 +2,7 @@ package com.greatCouturierGame;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class GameGateway {
@@ -15,8 +16,9 @@ public class GameGateway {
     private String[] availableTechsIds = null;
     private String[] availableTypesIds = null;
     private Set<Integer> maxWearTypesIds = new HashSet<>();
-    private String[] sellingWearIds;
-    private long[] sellingWearEndTime;
+    private List<String> sellingWearIds;
+    private List<Long> sellingWearEndTime;
+    private Set<String> wardrobeWearIds;
     private int maxTextureId;
     private int maxColorId;
     private int maxTextureColorId;
@@ -53,7 +55,8 @@ public class GameGateway {
 
         // Parse data
         this.userKey = GameSocketClient.getParam(connectResponse, "Key");
-        this.sellingWearIds = GameSocketClient.getParam(connectResponse, "SellWearIds").split("_");
+        final String[] sellingWearIds = GameSocketClient.getParam(connectResponse, "SellWearIds").split("_");
+        final String[] wardrobeWearIds = GameSocketClient.getParam(connectResponse, "WearIds").split("_");
         final String nextWearId = GameSocketClient.getParam(connectResponse, "WearNextId");
         final String[] sellingWearEndTime = GameSocketClient.getParam(connectResponse, "SellWearTimes").split("_");
         final String podiumFinishTime = GameSocketClient.getParam(connectResponse, "PodiumFinishTime");
@@ -85,7 +88,9 @@ public class GameGateway {
 
         // Set connection data fields
         this.nextWearId = Integer.parseInt(nextWearId);
-        this.sellingWearEndTime = this.parseServerTimeData(sellingWearEndTime);
+        this.sellingWearEndTime = Arrays.stream(this.parseServerTimeData(sellingWearEndTime)).boxed().collect(Collectors.toList());
+        this.sellingWearIds = Arrays.stream(sellingWearIds).collect(Collectors.toList());
+        this.wardrobeWearIds = Arrays.stream(wardrobeWearIds).collect(Collectors.toSet());
         this.skillsAvailabilityTime = this.parseServerTimeData(pumpRatingCooldowns);
         this.podiumFinishTime = Long.parseLong(podiumFinishTime);
         this.podiumFinishFlag = podiumFinishFlag.isEmpty();
@@ -241,6 +246,16 @@ public class GameGateway {
         }
     }
 
+    public void completeSale(String wearId) throws IOException {
+        this.gsc.sendCommand("ShopSoldWear", "WearId:"+ wearId);
+        Map <String, String> responseResultData = this.gsc.receiveData();
+        if (!responseResultData.containsKey("ConfirmResponse")) {
+            throw new IOException("");
+        }
+
+        Arrays.asList(this.sellingWearIds);
+    }
+
     public void createWear(Wear wear) throws IOException {
         String commandData = "WearId:"+ this.nextWearId +";WearType:"+ wear.getWearType()
                 +";WearColor:"+ wear.getWearColor() +";WearTexture:"+ wear.getWearTexture()
@@ -313,8 +328,16 @@ public class GameGateway {
         return maxTextureColorId;
     }
 
-    public long[] getSellingWearEndTime() {
+    public List<Long> getSellingWearEndTime() {
         return sellingWearEndTime;
+    }
+
+    public List<String> getSellingWearIds() {
+        return sellingWearIds;
+    }
+
+    public Set<String> getWardrobeWearIds() {
+        return wardrobeWearIds;
     }
 
     public void closeGame() {
@@ -332,21 +355,6 @@ public class GameGateway {
             this.availableTypesIds = GameSocketClient.getParam(canResearchTypeResponse, "TechIds").split("_");
         }
     }
-
-//    private void tryToConnect(int count, int delay) throws IOException {
-//        for (int i = 0; i < count; i++) {
-//
-//
-//            try {
-//                Thread.sleep(delay);
-//            } catch (InterruptedException e) {
-//                logger.fatal(e);
-//                System.exit(0);
-//            }
-//        }
-//
-//        throw new IOException("");
-//    }
 
     private long[] parseServerTimeData(final String[] serverTime) {
         return Arrays.stream(serverTime).mapToLong(
