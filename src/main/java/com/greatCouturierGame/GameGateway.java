@@ -218,11 +218,12 @@ public class GameGateway {
         }
 
         this.podiumFinishFlag = false;
+        this.podiumFinishTime = System.currentTimeMillis() + 4*60*60 + this.latency;
 
         Main.logger.info("Podium was successfully entered!");
     }
 
-    public void resolveShopStatus() throws IOException {
+    public String[] resolveShopStatus() throws IOException {
         this.gsc.sendCommand("ShopSellStatus");
         Map <String, String> responseResultData = this.gsc.receiveData();
         if (!responseResultData.containsKey("ShopSellStatusResponse")) {
@@ -233,17 +234,10 @@ public class GameGateway {
 //        String[] soldWearCosts = GameSocketClient.getParam(shopSellStatusResponse, "SellWearCosts").split("_");
         final String soldWearIdsParam = GameSocketClient.getParam(shopSellStatusResponse, "SellWearIds");
         if (soldWearIdsParam.isEmpty()) {
-            return;
+            return null;
         }
 
-        String[] soldWearIds = soldWearIdsParam.split("_");
-        for (String soldWearId : soldWearIds) {
-            this.gsc.sendCommand("ShopSoldWear", "WearId:"+ soldWearId);
-            responseResultData = this.gsc.receiveData();
-            if (!responseResultData.containsKey("ConfirmResponse")) {
-                throw new IOException("");
-            }
-        }
+        return soldWearIdsParam.split("_");
     }
 
     public void completeSale(String wearId) throws IOException {
@@ -253,10 +247,12 @@ public class GameGateway {
             throw new IOException("");
         }
 
-        Arrays.asList(this.sellingWearIds);
+        int i = this.sellingWearIds.indexOf(wearId);
+        this.sellingWearIds.remove(i);
+        this.sellingWearEndTime.remove(i);
     }
 
-    public void createWear(Wear wear) throws IOException {
+    public String createWear(Wear wear) throws IOException {
         String commandData = "WearId:"+ this.nextWearId +";WearType:"+ wear.getWearType()
                 +";WearColor:"+ wear.getWearColor() +";WearTexture:"+ wear.getWearTexture()
                 +";WearTextureColor:"+ wear.getWearTextureColor() +";WearTextureParams:;WearTexture2:"+ wear.getWearTexture2()
@@ -268,14 +264,18 @@ public class GameGateway {
         }
 
         this.nextWearId++;
+        return String.valueOf(this.nextWearId - 1);
     }
 
-    public void sellWear(int wearId) throws IOException {
+    public void sellWear(String wearId) throws IOException {
         this.gsc.sendCommand("ShopAddWear", "WearId:"+ wearId +";TimeHour:3;Password:");
         Map<String, String> responseResultData = this.gsc.receiveData();
         if (!responseResultData.containsKey("ConfirmResponse")) {
             throw new IOException("");
         }
+
+        this.sellingWearIds.add(wearId);
+        this.sellingWearEndTime.add(System.currentTimeMillis() + 3 * 60 * 60 * 1000);
     }
 
     public boolean isPodiumAvailable() {
@@ -286,6 +286,9 @@ public class GameGateway {
         return this.podiumFinishTime != -1 && this.podiumFinishTime < new Date().getTime();
     }
 
+    public long getPodiumFinishTime() {
+        return podiumFinishTime;
+    }
 
     public boolean isNewTypesAvailable() {
         return this.availableTypesIds != null;
