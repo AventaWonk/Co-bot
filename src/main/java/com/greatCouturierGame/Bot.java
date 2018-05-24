@@ -5,16 +5,20 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 public class Bot implements Runnable {
 
     private String uid;
     private String authToken;
     private GameGateway gameApi;
+    private Task[] tasks;
 
     Bot(String uid, String authToken) {
         this.uid = uid;
         this.authToken = authToken;
+        this.tasks = Task.getAllTasks();
     }
 
     public void run() {
@@ -30,7 +34,7 @@ public class Bot implements Runnable {
             } finally {
                 this.gameApi.closeGame();
             }
-            
+
             try {
                 Thread.sleep(actionsNextTime.stream().min(Long::compareTo).get());
             } catch (InterruptedException e) {
@@ -42,40 +46,30 @@ public class Bot implements Runnable {
     private long shopAction() throws IOException {
         final long currentTime = System.currentTimeMillis();
         final List<Long> sellingWearFinishTime = gameApi.getSellingWearEndTime();
-        boolean shopStatusFlag = false;
-        for (Long wearEndTime : sellingWearFinishTime) {
-            if (wearEndTime > currentTime) {
-                shopStatusFlag = true;
-                break;
-            }
-        }
-
-        if (shopStatusFlag) {
+        Predicate<Long> isSold = (endTime) -> currentTime > endTime;
+        final boolean shouldResolveFlag = sellingWearFinishTime.stream().anyMatch(isSold);
+        if (shouldResolveFlag) {
             final String[] soldWeaIds = gameApi.resolveShopStatus();
             for (String wearId : soldWeaIds) {
                 gameApi.completeSale(wearId);
-                try {
-                    Thread.sleep(988);
-                } catch (InterruptedException e) {
-                    System.exit(0);
-                }
+                this.simulateHumanReaction();
             }
         }
 
         while (sellingWearFinishTime.size() < 4) {
+            final int[] maxWearTypesIds = this.gameApi.getMaxWearTypesIds();
+            final int maxColorId = this.gameApi.getMaxColorId();
+            final int maxTextureId = this.gameApi.getMaxTextureId();
+            final int maxTextureColorId = this.gameApi.getMaxTextureColorId();
             Wear wear = Wear.generateRandomWear(
-                    this.gameApi.getMaxWearTypesIds(),
-                    this.gameApi.getMaxColorId(),
-                    this.gameApi.getMaxTextureId(),
-                    this.gameApi.getMaxTextureColorId()
+                    maxWearTypesIds,
+                    maxColorId,
+                    maxTextureId,
+                    maxTextureColorId
             );
             String wearId = gameApi.createWear(wear);
             gameApi.sellWear(wearId);
-            try {
-                Thread.sleep(988);
-            } catch (InterruptedException e) {
-                System.exit(0);
-            }
+            this.simulateHumanReaction();
         }
 
         return sellingWearFinishTime.stream().min(Long::compareTo).get();
@@ -84,13 +78,13 @@ public class Bot implements Runnable {
     private long skillAction() throws IOException {
         long[] skillNextTime = gameApi.getSkillsAvailabilityTime();
         final long currentTime = new Date().getTime();
-        for (int i = 0; i < 5; i++) {
-            final long skillAvTime = skillNextTime[i];
-            if (skillAvTime > currentTime) {
+
+        for (int i = 0; i < this.tasks.length; i++) {
+            if (skillNextTime[i] > currentTime) {
                 continue;
             }
 
-            // New type (podium) availability check
+            // New type availability check
             if (this.gameApi.isNewTypesAvailable()) {
                 String[] availableTypesIds = this.gameApi.getAvailableTypesIds();
                 final int typeId = ThreadLocalRandom.current().nextInt(availableTypesIds.length);
@@ -106,30 +100,29 @@ public class Bot implements Runnable {
             }
 
             try {
-                final int taskTimeInc = this.gameApi.doTask(i);
+                final long taskTimeInc = this.gameApi.doTask(this.tasks[i]);
                 final int generatedTimeInc = ThreadLocalRandom.current().nextInt(5000, 25000);
-                skillNextTime[i] = new Date().getTime() + taskTimeInc + generatedTimeInc;
+                skillNextTime[i] = System.currentTimeMillis() + taskTimeInc + generatedTimeInc;
                 Main.logger.info("Skill №" + (i+1) + " was successfully applied!");
-
-                // Simulate gamers reaction time before next skill
-                Thread.sleep(ThreadLocalRandom.current().nextInt(1500, 5000));
+                this.simulateHumanReaction();
             } catch (Exception e) {
                 Main.logger.error(e);
                 System.exit(0);
             }
         }
 
-        int soonSkillNumber = 0;
-        for (int i = 1; i < 5; i++) {
-            final long skillAvTime = skillNextTime[i];
-            if (skillAvTime < skillNextTime[soonSkillNumber] && skillAvTime > currentTime) {
-                soonSkillNumber = i;
-            }
-        }
+        return Stream.of(skillNextTime).min(Long::compareTo).get() - System.currentTimeMillis();
+//        int soonSkillNumber = 0;
+//        for (int i = 1; i < 5; i++) {
+//            final long skillAvTime = skillNextTime[i];
+//            if (skillAvTime < skillNextTime[soonSkillNumber] && skillAvTime > currentTime) {
+//                soonSkillNumber = i;
+//            }
+//        }
 
-        long soonSkillAvTime = skillNextTime[soonSkillNumber] - new Date().getTime();
-        Main.logger.info("Next skill №"+ (soonSkillNumber+1));
-        return soonSkillAvTime;
+//        long soonSkillAvTime = skillNextTime[soonSkillNumber] - new Date().getTime();
+//        Main.logger.info("Next skill №"+ (soonSkillNumber+1));
+//        return soonSkillAvTime;
     }
 
     private long podiumAction() {
@@ -150,6 +143,14 @@ public class Bot implements Runnable {
         }
 
         return this.gameApi.getPodiumFinishTime();
+    }
+
+    private void simulateHumanReaction() {
+        try {
+            Thread.sleep(ThreadLocalRandom.current().nextInt(1000, 3000));
+        } catch (InterruptedException e) {
+
+        }
     }
 
 }
