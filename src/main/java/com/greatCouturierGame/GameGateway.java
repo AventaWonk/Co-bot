@@ -2,6 +2,7 @@ package com.greatCouturierGame;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -80,6 +81,7 @@ public class GameGateway {
                     if (id < 800 && id > 400) {
                         this.maxWearTypesIds.add(id);
                     }
+
                     break;
             }
         }
@@ -108,15 +110,12 @@ public class GameGateway {
         this.latency = new Date().getTime() - serverTime;
     }
 
-    public int doTask(int taskNumber) throws IOException {
-        final String selectedTaskId = GameGateway.getTaskIdByNumber(taskNumber);
-        final int selectedTaskInc = GameGateway.getTaskIncByNumber(taskNumber);
-
-        Random rnd = new Random(System.currentTimeMillis());
-        final String rndTopShopId = this.topShopsIds[rnd.nextInt(this.topShopsIds.length)];
+    public long doTask(Task task) throws IOException {
+        final int shopIdIndex = ThreadLocalRandom.current().nextInt(this.topShopsIds.length);
+        final String rndTopShopId = this.topShopsIds[shopIdIndex];
         this.gsc.sendCommand("ShopEnter", "UserId:" + rndTopShopId);
         Map<String, String> shopData = this.gsc.receiveData();
-        this.gsc.sendCommand("PumpRating", "ItemId:" + selectedTaskId);
+        this.gsc.sendCommand("PumpRating", "ItemId:" + task.getId());
         Map<String, String> responseResultData = this.gsc.receiveData();
         if (!responseResultData.containsKey("PumpRatingResponse")) {
             throw new IOException("Bad response");
@@ -138,7 +137,7 @@ public class GameGateway {
 
         checkNewSkillAv(responseResultData);
 
-        return selectedTaskInc;
+        return task.getCooldown();
     }
 
     public void researchNewTech(String techId) throws IOException {
@@ -365,13 +364,4 @@ public class GameGateway {
         ).toArray();
     }
 
-    private static String getTaskIdByNumber(int taskNumber) {
-        String[] taskIds = {"1", "3", "6", "10", "15"};
-        return taskIds[taskNumber];
-    }
-
-    private static int getTaskIncByNumber(int taskNumber) {
-        int[] taskIncs = {602000, 3602000, 14401000, 28801000, 43201000};
-        return taskIncs[taskNumber];
-    }
 }
