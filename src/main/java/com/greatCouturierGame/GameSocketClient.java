@@ -1,11 +1,8 @@
 package com.greatCouturierGame;
 
-import org.apache.logging.log4j.Logger;
-
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.math.BigInteger;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
@@ -13,7 +10,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeoutException;
 
 public class GameSocketClient {
 
@@ -21,31 +17,22 @@ public class GameSocketClient {
 
     private Socket sc;
     private InputStream in;
-    private OutputStream out;
+    private BufferedOutputStream out;
     private final String serverKey = "33333";
     private String userKey;
-//    private Map<String, String> allReceivedCommands;
-    private static Logger logger = Main.getLogger();
 
     GameSocketClient(String hostname, int port) {
         try {
             this.sc = new Socket(hostname, port);
             this.sc.setSoTimeout(1000);
             this.in = sc.getInputStream();
-            this.out = sc.getOutputStream();
-
-//            this.allReceivedCommands = new HashMap<>();
-
+            this.out = new BufferedOutputStream(sc.getOutputStream());
         } catch (IOException e) {
-            e.printStackTrace();
+            System.exit(0);
         }
     }
 
     public void sendCommand(String commandType, String commandData) throws IOException {
-        if (this.userKey.isEmpty()) {
-            throw new IOException("");
-        }
-
         this.sendCommandBase("Type:"+ commandType +";"+ commandData);
     }
 
@@ -53,52 +40,40 @@ public class GameSocketClient {
         this.sendCommandBase("Type:"+ commandType);
     }
 
-    public Map<String, String> receiveData() {
+    public Map<String, String> receiveData() throws IOException {
         Map<String, String> receivedCommands = new HashMap<>();
         StringBuilder sb = new StringBuilder();
 
         try {
             int lagCount = 0;
-
-            // wait data
             while (this.in.available() == 0) {
                 Thread.sleep(100);
                 lagCount++;
 
-                if (lagCount > 20) {
-                    throw new TimeoutException("Server is not responding now");
+                if (lagCount > 30) {
+                    throw new IOException("Server is not responding now");
                 }
             }
 
-            // receive data
-            int cnt;
-            while ((cnt = this.in.read()) != -1) {
-                byte rd = (byte) cnt;
-                sb.append((char) rd);
+            int data;
+            while ((data = this.in.read()) != -1) {
+                sb.append((char) data);
 
-                if (rd == GameSocketClient.EOR) {
-                    String sResponse = sb.toString();
+                if ((byte) data == GameSocketClient.EOR) {
+                    String response = sb.toString();
                     sb = new StringBuilder();
 
                     try {
-                        final String responseType = getResponseType(sResponse);
-//                        this.allReceivedCommands.put(responseType, sResponse);
-                        receivedCommands.put(responseType, sResponse);
-                    } catch (Exception e) {
-                        logger.error(e);
+                        final String responseType = getResponseType(response);
+                        receivedCommands.put(responseType, response);
+                    } catch (NullPointerException e) {
+                        Main.logger.error(e);
                     }
                 }
             }
-        } catch (IOException e) {
-            if (e instanceof SocketTimeoutException) {
+        }  catch (SocketTimeoutException e) {
 
-            } else {
-
-            }
-        } catch (TimeoutException e) {
-            logger.fatal("Timeout exception");
-            System.exit(0);
-        } catch (InterruptedException e) {
+        }  catch (InterruptedException e) {
             System.exit(0);
         }
 
@@ -111,7 +86,7 @@ public class GameSocketClient {
             this.out.close();
             this.sc.close();
         } catch (IOException e) {
-            logger.error(e);
+            Main.logger.error(e);
             System.exit(0);
         }
     }
@@ -119,17 +94,13 @@ public class GameSocketClient {
     public void setUserKey(String userKey) {
         this.userKey = userKey;
     }
-
     private void sendCommandBase(String command) throws IOException {
         final String signedCommand = this.getSignatureOfString(command) + command;
         byte[] bt = signedCommand.getBytes("UTF-8");
-
-        BufferedOutputStream bout = new BufferedOutputStream(this.out, bt.length + 5);
-        bout.write(bt);
-        bout.write(GameSocketClient.EOR);
-        bout.flush();
+        this.out.write(bt);
+        this.out.write(GameSocketClient.EOR);
+        this.out.flush();
     }
-
     public static String getParam(String response, String param) throws NullPointerException {
         String paramWithCol = param + ":";
         int indParam = response.indexOf(paramWithCol);
@@ -144,7 +115,6 @@ public class GameSocketClient {
 
         return response.substring(indParam + paramWithCol.length(), indSemicolon);
     }
-
     protected static String getResponseType(String response) throws NullPointerException {
         String typeTag = "Type:";
         int indTypeTag = response.indexOf(typeTag);
@@ -157,7 +127,6 @@ public class GameSocketClient {
 
         return type;
     }
-
     private String getSignatureOfString(String commandString) {
         StringBuilder signature = new StringBuilder();
         int firstColIndex = commandString.indexOf(":");
@@ -179,8 +148,8 @@ public class GameSocketClient {
                 System.exit(0);
             }
         }
-        signature.insert(0, "Sig:" + hash + ";");
 
+        signature.insert(0, "Sig:" + hash + ";");
         int commandAndSignatureLength = signature.length() + commandString.length();
         String commandAndSignatureLengthAsString = String.valueOf(commandAndSignatureLength);
         if (commandAndSignatureLengthAsString.length() == 1) {
