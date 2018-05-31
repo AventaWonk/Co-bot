@@ -1,12 +1,11 @@
 package com.greatCouturierGame;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Date;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
 
 public class Bot implements Runnable {
 
@@ -24,26 +23,41 @@ public class Bot implements Runnable {
     public void run() {
         while (true) {
             this.gameApi = new GameGateway(uid, authToken);
-            List<Long> actionsNextTime = new ArrayList<>();
+            long[] actionsNextTime = new long[3];
+
             try {
-                actionsNextTime.add(this.podiumAction());
-                actionsNextTime.add(this.shopAction());
-                actionsNextTime.add(this.skillAction());
+                final long nextPodiumTime = this.doPodiumAction();
+                actionsNextTime[0] = nextPodiumTime;
             } catch (IOException e) {
-                System.exit(0);
-            } finally {
-                this.gameApi.closeGame();
+                Main.logger.info("Podium error");
             }
 
             try {
-                Thread.sleep(actionsNextTime.stream().min(Long::compareTo).get());
+                final long nextShopTime = this.doShopAction();
+                actionsNextTime[1] = nextShopTime;
+            } catch (IOException e) {
+                Main.logger.info("Shop error");
+            }
+
+            try {
+                final long nextTaskTime = this.doTaskAction();
+                actionsNextTime[2] = nextTaskTime;
+            } catch (IOException e) {
+                Main.logger.info("Task error");
+            }
+
+            this.gameApi.closeGame();
+            long soonActionTime = Arrays.stream(actionsNextTime).min().getAsLong();
+
+            try {
+                Thread.sleep(soonActionTime);
             } catch (InterruptedException e) {
                 System.exit(0);
             }
         }
     }
 
-    private long shopAction() throws IOException {
+    private long doShopAction() throws IOException {
         final long currentTime = System.currentTimeMillis();
         final List<Long> sellingWearFinishTime = gameApi.getSellingWearEndTime();
         Predicate<Long> isSold = (endTime) -> currentTime > endTime;
@@ -72,15 +86,15 @@ public class Bot implements Runnable {
             this.simulateHumanReaction();
         }
 
-        return sellingWearFinishTime.stream().min(Long::compareTo).get();
+        return Collections.min(sellingWearFinishTime);
     }
 
-    private long skillAction() throws IOException {
-        long[] skillNextTime = gameApi.getSkillsAvailabilityTime();
-        final long currentTime = new Date().getTime();
+    private long doTaskAction() throws IOException {
+        long[] tasksNextTime = gameApi.getTasksAvailabilityTime();
+        final long currentTime = System.currentTimeMillis();
 
         for (int i = 0; i < this.tasks.length; i++) {
-            if (skillNextTime[i] > currentTime) {
+            if (tasksNextTime[i] > currentTime) {
                 continue;
             }
 
@@ -99,47 +113,23 @@ public class Bot implements Runnable {
                 Main.logger.info("New tech was successfully researched");
             }
 
-            try {
-                final long taskTimeInc = this.gameApi.doTask(this.tasks[i]);
-                final int generatedTimeInc = ThreadLocalRandom.current().nextInt(5000, 25000);
-                skillNextTime[i] = System.currentTimeMillis() + taskTimeInc + generatedTimeInc;
-                Main.logger.info("Skill №" + (i+1) + " was successfully applied!");
-                this.simulateHumanReaction();
-            } catch (Exception e) {
-                Main.logger.error(e);
-                System.exit(0);
-            }
+            final long taskTimeInc = this.gameApi.doTask(this.tasks[i]);
+            final int generatedTimeInc = ThreadLocalRandom.current().nextInt(5000, 25000);
+            tasksNextTime[i] = System.currentTimeMillis() + taskTimeInc + generatedTimeInc;
+            Main.logger.info("Skill №" + (i+1) + " was successfully applied!");
+            this.simulateHumanReaction();
         }
 
-        return Stream.of(skillNextTime).min(Long::compareTo).get() - System.currentTimeMillis();
-//        int soonSkillNumber = 0;
-//        for (int i = 1; i < 5; i++) {
-//            final long skillAvTime = skillNextTime[i];
-//            if (skillAvTime < skillNextTime[soonSkillNumber] && skillAvTime > currentTime) {
-//                soonSkillNumber = i;
-//            }
-//        }
-
-//        long soonSkillAvTime = skillNextTime[soonSkillNumber] - new Date().getTime();
-//        Main.logger.info("Next skill №"+ (soonSkillNumber+1));
-//        return soonSkillAvTime;
+        return Arrays.stream(tasksNextTime).min().orElse(0) - System.currentTimeMillis();
     }
 
-    private long podiumAction() {
+    private long doPodiumAction() throws IOException {
         if (this.gameApi.isPodiumShouldResolve()) {
-            try {
-                this.gameApi.resolvePodiumStatus();
-            } catch (IOException e) {
-                System.exit(0);
-            }
+            this.gameApi.resolvePodiumStatus();
         }
 
         if (this.gameApi.isPodiumAvailable()) {
-            try {
-                this.gameApi.enterPodium();
-            } catch (IOException e) {
-                System.exit(0);
-            }
+            this.gameApi.enterPodium();
         }
 
         return this.gameApi.getPodiumFinishTime();
@@ -149,7 +139,7 @@ public class Bot implements Runnable {
         try {
             Thread.sleep(ThreadLocalRandom.current().nextInt(1000, 3000));
         } catch (InterruptedException e) {
-
+            System.exit(0);
         }
     }
 
