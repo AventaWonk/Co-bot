@@ -20,6 +20,14 @@ public class Bot implements Runnable {
         this.tasks = Task.getAllTasks();
     }
 
+    public static void simulateHumanReaction() {
+        try {
+            Thread.sleep(ThreadLocalRandom.current().nextInt(1000, 3000));
+        } catch (InterruptedException e) {
+            System.exit(0);
+        }
+    }
+
     public void run() {
         while (true) {
             this.gameApi = new GameGateway(uid, authToken);
@@ -66,7 +74,7 @@ public class Bot implements Runnable {
             final String[] soldWeaIds = gameApi.resolveShopStatus();
             for (String wearId : soldWeaIds) {
                 gameApi.completeSale(wearId);
-                this.simulateHumanReaction();
+                Bot.simulateHumanReaction();
             }
         }
 
@@ -83,7 +91,7 @@ public class Bot implements Runnable {
             );
             String wearId = gameApi.createWear(wear);
             gameApi.sellWear(wearId);
-            this.simulateHumanReaction();
+            Bot.simulateHumanReaction();
         }
 
         return Collections.min(sellingWearFinishTime);
@@ -117,7 +125,7 @@ public class Bot implements Runnable {
             final int generatedTimeInc = ThreadLocalRandom.current().nextInt(5000, 25000);
             tasksNextTime[i] = System.currentTimeMillis() + taskTimeInc + generatedTimeInc;
             Main.logger.info("Skill №" + (i+1) + " was successfully applied!");
-            this.simulateHumanReaction();
+            Bot.simulateHumanReaction();
         }
 
         return Arrays.stream(tasksNextTime).min().orElse(0) - System.currentTimeMillis();
@@ -133,14 +141,6 @@ public class Bot implements Runnable {
         }
 
         return this.gameApi.getPodiumFinishTime();
-    }
-
-    private void simulateHumanReaction() {
-        try {
-            Thread.sleep(ThreadLocalRandom.current().nextInt(1000, 3000));
-        } catch (InterruptedException e) {
-            System.exit(0);
-        }
     }
 
 }

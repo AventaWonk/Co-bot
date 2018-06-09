@@ -48,7 +48,7 @@ public class GameGateway {
         this.gsc.sendCommand("Connect", connectCommandData);
         Map<String, String> receivedData = this.gsc.receiveData();
         if (!receivedData.containsKey("ConnectResponse")) {
-            throw new IOException("Connect response error");
+            throw new IOException("Error! Can not connect to game server! Try to update authToken.");
         }
 
         final String connectResponse = receivedData.get("ConnectResponse");
@@ -66,6 +66,15 @@ public class GameGateway {
         this.topShopsIds = GameSocketClient.getParam(topResponse, "Ids3").split("_");
         final String[] wearData = GameSocketClient.getParam(connectResponse, "AvailableComponents").split("_");
         final int[] availableComponentsMaxTypes = Stream.of(wearData).mapToInt(Integer::parseInt).toArray();
+
+        // Set connection data fields
+        this.nextWearId = Integer.parseInt(nextWearId);
+        this.sellingWearEndTime = Arrays.stream(this.parseServerTimeData(sellingWearEndTime)).boxed().collect(Collectors.toList());
+        this.sellingWearIds = Arrays.stream(sellingWearIds).collect(Collectors.toList());
+        this.wardrobeWearIds = Arrays.stream(wardrobeWearIds).collect(Collectors.toSet());
+        this.skillsAvailabilityTime = this.parseServerTimeData(pumpRatingCooldowns);
+        this.podiumFinishTime = Long.parseLong(podiumFinishTime);
+        this.podiumFinishFlag = podiumFinishFlag.isEmpty();
         for (int id : availableComponentsMaxTypes) {
             switch (id / 100) {
                 case 2:
@@ -87,15 +96,6 @@ public class GameGateway {
         }
 
         this.checkNewSkillAv(receivedData);
-
-        // Set connection data fields
-        this.nextWearId = Integer.parseInt(nextWearId);
-        this.sellingWearEndTime = Arrays.stream(this.parseServerTimeData(sellingWearEndTime)).boxed().collect(Collectors.toList());
-        this.sellingWearIds = Arrays.stream(sellingWearIds).collect(Collectors.toList());
-        this.wardrobeWearIds = Arrays.stream(wardrobeWearIds).collect(Collectors.toSet());
-        this.skillsAvailabilityTime = this.parseServerTimeData(pumpRatingCooldowns);
-        this.podiumFinishTime = Long.parseLong(podiumFinishTime);
-        this.podiumFinishFlag = podiumFinishFlag.isEmpty();
     }
 
     public void syncTimeWithServer() throws IOException {
@@ -121,13 +121,7 @@ public class GameGateway {
             throw new IOException("Bad response");
         }
 
-        // Simulate gamers reaction time
-        try {
-            Thread.sleep(2121);
-        } catch (InterruptedException e) {
-            System.exit(0);
-        }
-
+        Bot.simulateHumanReaction();
         this.gsc.sendCommand("CatchMoney", "Money:1");
         responseResultData.putAll(this.gsc.receiveData());
 
@@ -198,13 +192,7 @@ public class GameGateway {
             String selectedModelId = availableModelsIds[rnd.nextInt(availableModelsIds.length)];
             this.gsc.sendCommand("Vote", "UserId:" + selectedModelId);
             responseResultData = this.gsc.receiveData();
-
-            // Simulate gamers reaction time
-            try {
-                Thread.sleep(988);
-            } catch (InterruptedException e) {
-                System.exit(0);
-            }
+            Bot.simulateHumanReaction();
         }
 
         if (responseResultData.containsKey("CanPodiumResponse")) {
@@ -217,8 +205,7 @@ public class GameGateway {
         }
 
         this.podiumFinishFlag = false;
-        this.podiumFinishTime = System.currentTimeMillis() + 4*60*60 + this.latency;
-
+        this.podiumFinishTime = System.currentTimeMillis() + 3*60*60 + this.latency;
         Main.logger.info("Podium was successfully entered!");
     }
 
@@ -274,7 +261,11 @@ public class GameGateway {
         }
 
         this.sellingWearIds.add(wearId);
-        this.sellingWearEndTime.add(System.currentTimeMillis() + 3 * 60 * 60 * 1000);
+        this.sellingWearEndTime.add(System.currentTimeMillis() + 3*60*60*1000);
+    }
+
+    public void closeGame() {
+        this.gsc.close();
     }
 
     public boolean isPodiumAvailable() {
@@ -282,32 +273,49 @@ public class GameGateway {
     }
 
     public boolean isPodiumShouldResolve() {
-        return this.podiumFinishTime != -1 && this.podiumFinishTime < new Date().getTime();
-    }
-
-    public long getPodiumFinishTime() {
-        return podiumFinishTime;
+        return this.podiumFinishTime != -1 && this.podiumFinishTime < System.currentTimeMillis();
     }
 
     public boolean isNewTypesAvailable() {
         return this.availableTypesIds != null;
     }
 
+    public boolean isNewTechsAvailable() {
+        return this.availableTechsIds != null;
+    }
+
+    private void checkNewSkillAv(Map<String, String> responseResultData) {
+        if (responseResultData.containsKey("CanResearchResponse")) {
+            final String canResearchResponse = responseResultData.get("CanResearchResponse");
+            this.availableTechsIds = GameSocketClient.getParam(canResearchResponse, "TechIds").split("_");
+        }
+
+        if (responseResultData.containsKey("CanResearchTypeResponse")) {
+            final String canResearchTypeResponse = responseResultData.get("CanResearchTypeResponse");
+            this.availableTypesIds = GameSocketClient.getParam(canResearchTypeResponse, "TechIds").split("_");
+        }
+    }
+
+    private long[] parseServerTimeData(final String[] serverTime) {
+        return Arrays.stream(serverTime).mapToLong(
+                (skillAvTime) -> Long.parseLong(skillAvTime) + this.latency
+        ).toArray();
+    }
+
+    public long getPodiumFinishTime() {
+        return podiumFinishTime;
+    }
+
     public String[] getAvailableTypesIds() {
         return availableTypesIds;
     }
 
-    public long[] getSkillsAvailabilityTime() {
+    public long[] getTasksAvailabilityTime() {
         return skillsAvailabilityTime;
     }
 
     public String[] getTopShopsIds() {
         return topShopsIds;
-    }
-
-    public boolean isNewTechsAvailable() {
-        return this.availableTechsIds != null;
-
     }
 
     public String[] getAvailableTechsIds() {
@@ -340,28 +348,6 @@ public class GameGateway {
 
     public Set<String> getWardrobeWearIds() {
         return wardrobeWearIds;
-    }
-
-    public void closeGame() {
-        this.gsc.close();
-    }
-
-    private void checkNewSkillAv(Map<String, String> responseResultData) {
-        if (responseResultData.containsKey("CanResearchResponse")) {
-            final String canResearchResponse = responseResultData.get("CanResearchResponse");
-            this.availableTechsIds = GameSocketClient.getParam(canResearchResponse, "TechIds").split("_");
-        }
-
-        if (responseResultData.containsKey("CanResearchTypeResponse")) {
-            final String canResearchTypeResponse = responseResultData.get("CanResearchTypeResponse");
-            this.availableTypesIds = GameSocketClient.getParam(canResearchTypeResponse, "TechIds").split("_");
-        }
-    }
-
-    private long[] parseServerTimeData(final String[] serverTime) {
-        return Arrays.stream(serverTime).mapToLong(
-                (skillAvTime) -> Long.parseLong(skillAvTime) + this.latency
-        ).toArray();
     }
 
 }
