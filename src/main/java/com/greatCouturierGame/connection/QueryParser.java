@@ -1,7 +1,5 @@
 package com.greatCouturierGame.connection;
 
-import com.greatCouturierGame.Main;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -13,12 +11,12 @@ public class QueryParser {
         this.query = query;
     }
 
-    public String getParameter(String parameter) throws NotContainsParameterException {
+    public String getParameter(String parameter) {
         String fullParameter = parameter + ":";
         int parameterIndex = this.query.indexOf(fullParameter);
         int semicolonIndex = this.query.indexOf(";", parameterIndex);
         if (parameterIndex == -1 || parameterIndex < semicolonIndex) {
-            throw new NotContainsParameterException("Tag not found error!");
+            return null;
         }
 
         if (semicolonIndex == -1 ) {
@@ -31,19 +29,13 @@ public class QueryParser {
     public Map<String, String> getParameters(String... parameters)  {
         Map<String, String> queryDataMap = new HashMap<>(parameters.length);
         for (String parameter : parameters) {
-            try {
-                queryDataMap.put(parameter, getParameter(parameter));
-            } catch (NotContainsParameterException e) {
-                Main.logger.error("Parameter "+ parameter +" not exists");
-                Main.logger.error("Query: "+ this.query);
-                queryDataMap.put(parameter, null);
-            }
+            queryDataMap.put(parameter, getParameter(parameter));
         }
 
         return queryDataMap;
     }
 
-    protected static String getTypeOfQuery(String query) throws NotContainsParameterException {
+    protected static String getTypeOfQuery(String query) {
         int semicolonIndex = query.indexOf(";");
         if (semicolonIndex == -1) {
             semicolonIndex = query.length();
@@ -51,7 +43,7 @@ public class QueryParser {
 
         String queryType = query.substring(query.indexOf(":") + 1, semicolonIndex);
         if (queryType.length() < 1) {
-            throw new NotContainsParameterException("Has not type error");
+            return null;
         }
 
         return queryType;
