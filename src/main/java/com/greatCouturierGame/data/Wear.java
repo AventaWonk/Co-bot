@@ -1,8 +1,19 @@
-package com.greatCouturierGame;
+package com.greatCouturierGame.data;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Wear {
+
+    public enum Parameters {
+        TEXTURE,
+        COLOR,
+        TEXTURE_COLOR,
+        SECOND_TEXTURE,
+        SECOND_TEXTURECOLOR
+    }
+
     private int wearType;
     private int wearColor;
     private int wearTexture;
@@ -55,21 +66,36 @@ public class Wear {
         return wearTextureParams2;
     }
 
-    public static Wear generateRandomWear(int[] maxWearTypes, int maxWearColor, int maxWearTexture, int maxWearTextureColor) {
-        int maxWearType = ThreadLocalRandom.current().nextInt(0, maxWearTypes.length);
-        int minWearType = maxWearType / 100 * 100 + 1;
-        int minWearColor = maxWearColor / 100 * 100 + 1;
-        int minWearTexture = maxWearTexture / 100 * 100 + 1;
-        int minWearTextureColor = maxWearTextureColor / 100 * 100 + 1;
-        int randomWearType = ThreadLocalRandom.current().nextInt(minWearType, maxWearType + 1);
-        int randomWearColor = ThreadLocalRandom.current().nextInt(minWearColor, maxWearColor + 1);
-        int randomWearTexture = ThreadLocalRandom.current().nextInt(minWearTexture, maxWearTexture + 1);
-        int randomWearTextureColor = ThreadLocalRandom.current().nextInt(minWearTextureColor, maxWearTextureColor + 1);
+    public static Wear generateRandomWear(List<Integer> clothesIds, Map<Wear.Parameters, Integer> parametersIds)
+            throws Exception
+    {
+        if (clothesIds.isEmpty()) {
+            throw new Exception("Missing any clothes id");
+        }
 
-        return new Builder(randomWearType, randomWearColor)
-                .setWearTexture(randomWearTexture)
-                .setWearTextureColor(randomWearTextureColor)
+        Integer rndClothesMaxId = clothesIds.get(ThreadLocalRandom.current().nextInt(0, clothesIds.size()));
+        Integer maxColor = parametersIds.get(Parameters.COLOR);
+        Integer maxTexture = parametersIds.get(Parameters.TEXTURE);
+        Integer maxTextureColor = parametersIds.get(Parameters.TEXTURE_COLOR);
+        if (maxColor == null || maxTexture == null || maxTextureColor == null) {
+            throw new Exception("Missing required parameters");
+        }
+
+        int rndType = Wear.getRandomIdByMax(rndClothesMaxId);
+        int rndColor = Wear.getRandomIdByMax(maxColor);
+        int rndTexture = Wear.getRandomIdByMax(maxTexture);
+        int rndTextureColor = Wear.getRandomIdByMax(maxTextureColor);
+
+        return new Builder(rndType, rndColor)
+                .setWearTexture(rndTexture)
+                .setWearTextureColor(rndTextureColor)
                 .build();
+    }
+
+    private static int getRandomIdByMax(int maxId) {
+        int minId = maxId / 100 * 100 + 1;
+
+        return ThreadLocalRandom.current().nextInt(minId, maxId + 1);
     }
 
     public static class Builder {
