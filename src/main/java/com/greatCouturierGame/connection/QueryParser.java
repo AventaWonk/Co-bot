@@ -1,57 +1,27 @@
 package com.greatCouturierGame.connection;
 
-import java.util.HashMap;
 import java.util.Map;
 
-public class QueryParser {
+public interface QueryParser {
 
-    private String query;
+    String getParameter(String parameter);
 
-    QueryParser(String query) {
-        this.query = query;
-    }
+    Map<String, String> getParameters(String... parameters);
 
-    public String getParameter(String parameter) {
-        String fullParameter = parameter + ":";
-        int parameterIndex = this.query.indexOf(fullParameter);
-        int semicolonIndex = this.query.indexOf(";", parameterIndex);
-        if (parameterIndex == -1 || parameterIndex < semicolonIndex) {
-            return null;
-        }
+    QueryParserImpl setQuery(String query);
 
-        if (semicolonIndex == -1 ) {
-            return this.query.substring(parameterIndex + fullParameter.length());
-        }
-
-        return this.query.substring(parameterIndex + fullParameter.length(), semicolonIndex);
-    }
-
-    public Map<String, String> getParameters(String... parameters)  {
-        Map<String, String> queryDataMap = new HashMap<>(parameters.length);
-        for (String parameter : parameters) {
-            queryDataMap.put(parameter, getParameter(parameter));
-        }
-
-        return queryDataMap;
-    }
-
-    protected static String getTypeOfQuery(String query) {
+    static String getType(String query) {
         int semicolonIndex = query.indexOf(";");
         if (semicolonIndex == -1) {
             semicolonIndex = query.length();
         }
 
         String queryType = query.substring(query.indexOf(":") + 1, semicolonIndex);
-        if (queryType.length() < 1) {
+        if (queryType.isEmpty()) {
             return null;
         }
 
         return queryType;
-    }
-
-    public QueryParser setQuery(String query) {
-        this.query = query;
-        return this;
     }
 
 }
