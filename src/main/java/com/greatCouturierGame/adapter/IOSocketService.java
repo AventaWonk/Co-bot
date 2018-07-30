@@ -49,7 +49,6 @@ public class IOSocketService implements SocketService {
         this.out.write(request);
         this.out.write(IOSocketService.EOL);
         this.out.flush();
-
         logger.info("Request: "+ new String(request));
     }
 
@@ -63,7 +62,7 @@ public class IOSocketService implements SocketService {
         while (data[data.length - 1] != EOL) {
             dataSize = this.waitData();
             byte[] newData = new byte[dataSize];
-            received += this.in.read(data, 0, dataSize);
+            received += this.in.read(newData, 0, dataSize);
             data = IOSocketService.concatArrays(data, newData);
         }
 
