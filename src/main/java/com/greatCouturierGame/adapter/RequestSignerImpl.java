@@ -1,7 +1,8 @@
 package com.greatCouturierGame.adapter;
 
-import com.greatCouturierGame.Main;
 import com.greatCouturierGame.connection.QueryParser;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.math.BigInteger;
 import java.security.MessageDigest;
@@ -9,6 +10,7 @@ import java.security.NoSuchAlgorithmException;
 
 public class RequestSignerImpl implements RequestSigner {
 
+    private static final Logger logger = LogManager.getLogger(RequestSignerImpl.class);
     private static final String serverKey = "33333";
 
     private String userKey;
@@ -21,13 +23,8 @@ public class RequestSignerImpl implements RequestSigner {
     public String getSign(String request) {
         StringBuilder signSB = new StringBuilder();
         String requestType = QueryParser.getType(request);
-        if (requestType == null) {
-            requestType = "";
-//            throw new BadQueryException();
-        }
-
         String hash = "";
-        if (!requestType.equals("SyncTime")  && !requestType.equals("Connect")) {
+        if (requestType != null && !requestType.equals("SyncTime")  && !requestType.equals("Connect")) {
             hash = getHashOfString(request + getSalt());
         }
 
@@ -53,7 +50,7 @@ public class RequestSignerImpl implements RequestSigner {
         try {
             md5MessageDigest = MessageDigest.getInstance("MD5");
         } catch (NoSuchAlgorithmException e) {
-            Main.logger.fatal(e);
+            logger.fatal(e);
             System.exit(1);
         }
 
