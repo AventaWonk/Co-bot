@@ -16,4 +16,6 @@ public interface Communicator {
     boolean disconnect();
 
     boolean isConnected();
+
+    RequestSigner getRequestSigner();
 }

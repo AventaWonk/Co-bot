@@ -1,11 +1,14 @@
 package com.greatCouturierGame.adapter;
 
 import com.greatCouturierGame.connection.GameResponse;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 
 public class SocketCommunicator implements Communicator {
 
+    private static final Logger logger = LogManager.getLogger(SocketCommunicator.class);
     private static final String GAME_SERVER_HOST = "109.234.153.253";
     private static final int GAME_SERVER_PORT = 33333;
 
@@ -57,7 +60,14 @@ public class SocketCommunicator implements Communicator {
         return this.socketService.isConnected();
     }
 
+    @Override
+    public RequestSigner getRequestSigner() { return this.requestSigner; }
+
     private void sendRequestBase(String request) throws IOException  {
+        if (!this.isConnected()) {
+            this.connect();
+        }
+
         final String signedRequest = this.requestSigner.getSign(request) + request;
         this.socketService.send(signedRequest.getBytes("UTF-8"));
     }
