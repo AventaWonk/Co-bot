@@ -32,9 +32,28 @@ public class SocketCommunicator implements Communicator {
 
     @Override
     public GameResponse receive() throws IOException {
-        byte[] bytes = this.socketService.receive();
+        byte[] responseBytes = this.socketService.receive();
 
-        return new GameResponse(bytes);
+        return new GameResponse(responseBytes);
+    }
+
+    @Override
+    public GameResponse receive(String... responseTypes) throws IOException {
+        logger.info("Receiving "+ responseTypes.length +"responses...");
+        byte[] tempResponseBytes;
+        GameResponse tempResponse;
+        byte[] responseBytes = this.socketService.receive();
+        GameResponse gameResponse = new GameResponse(responseBytes);
+        for (String response : responseTypes) {
+            logger.info("Trying to receive response "+ response);
+            while (!gameResponse.isContains(response)) {
+                tempResponseBytes = this.socketService.receive();
+                tempResponse = new GameResponse(tempResponseBytes);
+                gameResponse.getResponse().putAll(tempResponse.getResponse());
+            }
+        }
+
+        return gameResponse;
     }
 
     @Override

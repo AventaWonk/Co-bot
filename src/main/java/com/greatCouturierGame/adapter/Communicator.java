@@ -11,6 +11,8 @@ public interface Communicator {
 
     GameResponse receive() throws IOException;
 
+    GameResponse receive(String... responses) throws IOException;
+
     void connect() throws IOException;
 
     boolean disconnect();
