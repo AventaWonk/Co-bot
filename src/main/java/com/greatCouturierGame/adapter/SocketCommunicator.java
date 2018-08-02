@@ -5,6 +5,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class SocketCommunicator implements Communicator {
 
@@ -38,20 +41,34 @@ public class SocketCommunicator implements Communicator {
     }
 
     @Override
-    public GameResponse receive(String... responseTypes) throws IOException {
-        logger.info("Receiving "+ responseTypes.length +"responses...");
-        byte[] tempResponseBytes;
-        GameResponse tempResponse;
-        byte[] responseBytes = this.socketService.receive();
-        GameResponse gameResponse = new GameResponse(responseBytes);
-        for (String response : responseTypes) {
-            logger.info("Trying to receive response "+ response);
-            while (!gameResponse.isContains(response)) {
-                tempResponseBytes = this.socketService.receive();
-                tempResponse = new GameResponse(tempResponseBytes);
-                gameResponse.getResponse().putAll(tempResponse.getResponse());
-            }
+    public GameResponse receive(String type) throws IOException {
+        logger.info("Receiving "+ type +" response...");
+        byte[] responseBytes;
+        GameResponse gameResponse = new GameResponse();
+        while (!gameResponse.isContains(type)) {
+            responseBytes = this.socketService.receive();
+            gameResponse.addPart(responseBytes);
         }
+
+        logger.info("Response was successfully received");
+
+        return gameResponse;
+    }
+
+    @Override
+    public GameResponse receive(String... types) throws IOException {
+        logger.info("Receiving "+ types.length +" responses...");
+        byte[] responseBytes;
+        List<String> typesList = new ArrayList<>(Arrays.asList(types));
+        GameResponse gameResponse = new GameResponse();
+
+        while (typesList.size() > 0) {
+            responseBytes = this.socketService.receive();
+            gameResponse.addPart(responseBytes);
+            typesList.removeAll(gameResponse.getResponseMap().keySet());
+        }
+
+        logger.info("All responses were successfully received");
 
         return gameResponse;
     }
