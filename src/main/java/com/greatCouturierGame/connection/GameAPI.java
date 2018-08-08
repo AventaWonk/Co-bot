@@ -4,6 +4,7 @@ import com.greatCouturierGame.data.Task;
 import com.greatCouturierGame.data.Wear;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public interface GameAPI {
@@ -17,6 +18,10 @@ public interface GameAPI {
 
     long doTask(Task task)  throws IOException;
 
+    List<Integer> getAvailableClothesIds() throws NotConnectedException;
+
+    Map<Wear.Parameters, Integer> getAvailableParametersIds() throws NotConnectedException;
+
     String createClothes(Wear wear) throws IOException;
 
     void sellClothes(String clothesId) throws IOException;
@@ -26,6 +31,8 @@ public interface GameAPI {
     Map<String, Long> getShopStatus() throws IOException;
 
     String[] getSoldClothesIds() throws IOException;
+
+    boolean isPodiumStarted() throws NotConnectedException;
 
     boolean isPodiumFinished() throws NotConnectedException;
 
