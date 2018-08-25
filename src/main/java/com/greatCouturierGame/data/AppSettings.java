@@ -1,16 +1,19 @@
-package com.greatCouturierGame;
+package com.greatCouturierGame.data;
 
-public final class Settings {
+public final class AppSettings {
+
     private String accountsFile;
     private String accountPartsSeparator;
+    private boolean consoleLogger;
     private boolean accountValidation;
     private boolean serverMode;
     private boolean debugMode;
 
-    public static Settings getDefault() {
-        return new Settings()
+    public static AppSettings getDefault() {
+        return new AppSettings()
                 .setAccountsFile("accounts.txt")
                 .setAccountPartsSeparator(":")
+                .setConsoleLogger(true)
                 .setAccountValidation(true)
                 .setDebugMode(true)
                 .setServerMode(false);
@@ -20,7 +23,7 @@ public final class Settings {
         return accountsFile;
     }
 
-    public Settings setAccountsFile(String accountsFile) {
+    public AppSettings setAccountsFile(String accountsFile) {
         this.accountsFile = accountsFile;
         return this;
     }
@@ -29,8 +32,17 @@ public final class Settings {
         return accountPartsSeparator;
     }
 
-    public Settings setAccountPartsSeparator(String accountPartsSeparator) {
+    public AppSettings setAccountPartsSeparator(String accountPartsSeparator) {
         this.accountPartsSeparator = accountPartsSeparator;
+        return this;
+    }
+
+    public boolean isConsoleLogger() {
+        return consoleLogger;
+    }
+
+    public AppSettings setConsoleLogger(boolean consoleLogger) {
+        this.consoleLogger = consoleLogger;
         return this;
     }
 
@@ -38,7 +50,7 @@ public final class Settings {
         return accountValidation;
     }
 
-    public Settings setAccountValidation(boolean accountValidation) {
+    public AppSettings setAccountValidation(boolean accountValidation) {
         this.accountValidation = accountValidation;
         return this;
     }
@@ -47,7 +59,7 @@ public final class Settings {
         return serverMode;
     }
 
-    public Settings setServerMode(boolean serverMode) {
+    public AppSettings setServerMode(boolean serverMode) {
         this.serverMode = serverMode;
         return this;
     }
@@ -56,7 +68,7 @@ public final class Settings {
         return debugMode;
     }
 
-    public Settings setDebugMode(boolean debugMode) {
+    public AppSettings setDebugMode(boolean debugMode) {
         this.debugMode = debugMode;
         return this;
     }
