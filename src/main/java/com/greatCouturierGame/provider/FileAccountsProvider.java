@@ -1,6 +1,7 @@
 package com.greatCouturierGame.provider;
 
-import com.greatCouturierGame.Main;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -10,6 +11,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class FileAccountsProvider implements AccountsProvider {
+
+    private static final Logger logger = LogManager.getLogger(FileAccountsProvider.class);
 
     private String fileName;
     private String accountPartsSeparator;
@@ -24,12 +27,12 @@ public class FileAccountsProvider implements AccountsProvider {
         Map<String, String> accountsMap = new HashMap<>();
         File accountsFile = new File(fileName);
         if (!accountsFile.exists()) {
-            Main.logger.error("File "+ fileName +" not found!");
+            logger.error("File "+ fileName +" not found!");
             FileAccountsProvider.createAccountsFile(fileName);
             return accountsMap;
         }
 
-        Main.logger.info("Accounts file found successfully");
+        logger.info("Accounts file successfully found");
         try (BufferedReader br = new BufferedReader(new FileReader(accountsFile))) {
             String accountString;
             while ((accountString = br.readLine()) != null) {
@@ -37,7 +40,7 @@ public class FileAccountsProvider implements AccountsProvider {
                 accountsMap.put(accountParts[0], accountParts[1]);
             }
         } catch (IOException e) {
-            Main.logger.fatal(e);
+            logger.fatal(e);
             return accountsMap;
         }
 
@@ -48,10 +51,10 @@ public class FileAccountsProvider implements AccountsProvider {
         File file = new File(fileName);
         try {
             if (file.createNewFile()) {
-                Main.logger.info("Accounts file "+ fileName +" created successfully");
+                logger.info("Accounts file "+ fileName +" created successfully");
             }
         } catch (IOException e) {
-            Main.logger.fatal("Can't create accounts file with name "+ fileName);
+            logger.fatal("Can't create accounts file with name "+ fileName);
         }
     }
 
