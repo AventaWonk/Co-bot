@@ -24,58 +24,10 @@ public abstract class AbstractBotStrategy {
         this.gameAPI = gameAPI;
     }
 
-    public abstract long doPlayerActions();
+    public abstract long doPlayerActions(String uid, String authToken);
 
-    protected long doShopAction() throws IOException {
-        final long currentTime = System.currentTimeMillis();
-        final Map<String, Long> shopData = gameAPI.getShopStatus();
-        final boolean isAnyClothesSold = shopData.entrySet().stream()
-                .anyMatch((entry) -> currentTime > entry.getValue());
-
-        // Complete the sale if any clothes was sold
-        if (isAnyClothesSold) {
-            final String[] soldClothesIds = gameAPI.getSoldClothesIds();
-            for (String clothesId : soldClothesIds) {
-                gameAPI.completeClothesSell(clothesId);
-                logger.info("Clothes "+ clothesId +" was successfully sold");
-                Bot.simulateHumanReaction();
-            }
-        }
-
-        // Create random wear and sell it
-        try {
-            Wear wear = Wear.generateRandomWear(
-                    this.gameAPI.getAvailableClothesIds(),
-                    this.gameAPI.getAvailableParametersIds()
-            );
-
-            while (shopData.size() < 4) {
-                String clothesId = gameAPI.createClothes(wear);
-                gameAPI.sellClothes(clothesId);
-                Bot.simulateHumanReaction();
-                logger.info("Sale of clothes "+ clothesId +" successfully started");
-            }
-        } catch (Exception e) {
-            logger.fatal(e);
-        }
-
-        Comparator<Map.Entry<String, Long>> shopDataComparator = (entryA, entryB) -> {
-            if (entryA.getValue() > entryB.getValue()) {
-                return 1;
-            } else if (entryA.getValue() < entryB.getValue()) {
-                return -1;
-            }
-
-            return 0;
-        };
-
-        return shopData.entrySet().stream()
-                .min(shopDataComparator)
-                .orElseThrow()
-                .getValue();
-    }
-
-    protected long doTaskAction() throws IOException, NotConnectedException {
+    protected long doTaskAction(int taskId) throws IOException, NotConnectedException {
+        logger.info("Task action started");
         long[] tasksStatus = gameAPI.getTasksStatus();
         final long currentTime = System.currentTimeMillis();
 
@@ -103,16 +55,73 @@ public abstract class AbstractBotStrategy {
             final int rndTimeInc = ThreadLocalRandom.current().nextInt(1000, 25000);
             tasksStatus[i] = System.currentTimeMillis() + taskTimeInc + rndTimeInc;
             logger.info("Skill №" + (i+1) + " was successfully applied!");
-            Bot.simulateHumanReaction();
+            Player.addDelay();
         }
 
+        logger.info("Task action successfully completed");
+
         return Arrays.stream(tasksStatus).min()
-                .orElseThrow();
+                .orElseThrow(() -> new IOException("e"));
+    }
+
+    protected long doShopAction() throws IOException {
+        logger.info("Shop action started");
+        final long currentTime = System.currentTimeMillis();
+        final Map<String, Long> shopData = gameAPI.getShopStatus();
+        final boolean isAnyClothesSold = shopData.entrySet().stream()
+                .anyMatch((entry) -> currentTime > entry.getValue());
+
+        // Complete the sale if any clothes was sold
+        if (isAnyClothesSold) {
+            final String[] soldClothesIds = gameAPI.getSoldClothesIds();
+            for (String clothesId : soldClothesIds) {
+                gameAPI.completeClothesSell(clothesId);
+                logger.info("Clothes "+ clothesId +" was successfully sold");
+                Player.addDelay();
+            }
+        }
+
+        // Create random wear and sell it
+        try {
+            Wear wear = Wear.generateRandomWear(
+                    this.gameAPI.getAvailableClothesIds(),
+                    this.gameAPI.getAvailableParametersIds()
+            );
+
+            while (shopData.size() < 4) {
+                String clothesId = gameAPI.createClothes(wear);
+                gameAPI.sellClothes(clothesId);
+                Player.addDelay();
+                logger.info("Sale of clothes"+ clothesId +" successfully started");
+            }
+        } catch (Exception e) {
+            logger.fatal(e);
+        }
+
+        Comparator<Map.Entry<String, Long>> shopDataComparator = (entryA, entryB) -> {
+            if (entryA.getValue() > entryB.getValue()) {
+                return 1;
+            } else if (entryA.getValue() < entryB.getValue()) {
+                return -1;
+            }
+
+            return 0;
+        };
+
+        logger.info("Shop action successfully completed");
+
+        return shopData.entrySet().stream()
+                .min(shopDataComparator)
+                .orElseThrow(() -> new IOException("e"))
+                .getValue();
     }
 
     protected long doPodiumAction() throws IOException, NotConnectedException {
         if (this.gameAPI.isPodiumFinished()) {
             this.gameAPI.finishPodiumContest();
+        }
+
+        if (!this.gameAPI.isPodiumStarted()) {
             this.gameAPI.startPodiumContest();
         }
 

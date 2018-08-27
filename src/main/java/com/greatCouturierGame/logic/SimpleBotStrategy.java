@@ -8,6 +8,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class SimpleBotStrategy extends AbstractBotStrategy {
 
@@ -53,6 +54,38 @@ public class SimpleBotStrategy extends AbstractBotStrategy {
         }
 
         return 0;
+    }
+
+    private long doATask( ) {
+        logger.info("Task action started");
+        long[] tasksStatus = gameAPI.getTasksStatus();
+        final long currentTime = System.currentTimeMillis();
+
+        for (int i = 0; i < AbstractBotStrategy.tasks.length; i++) {
+            if (tasksStatus[i] > currentTime) {
+                continue;
+            }
+
+            // New type availability check
+            String[] availableTypesIds = this.gameAPI.getAvailableTypesIds();
+            if (availableTypesIds != null) {
+                int typeId = ThreadLocalRandom.current().nextInt(availableTypesIds.length);
+                this.gameAPI.researchType(availableTypesIds[typeId]);
+//                logger.info("New type was successfully researched");
+            }
+
+            // New tech availability check
+            String[] availableTechIds = this.gameAPI.getAvailableTechsIds();
+            if (availableTechIds != null) {
+                this.gameAPI.researchTech(availableTechIds[0]);
+                logger.info("New tech was successfully researched");
+            }
+
+            final long taskTimeInc = this.gameAPI.doTask(AbstractBotStrategy.tasks[i]);
+            final int rndTimeInc = ThreadLocalRandom.current().nextInt(1000, 25000);
+            tasksStatus[i] = System.currentTimeMillis() + taskTimeInc + rndTimeInc;
+            logger.info("Skill №" + (i+1) + " was successfully applied!");
+            Player.addDelay();
     }
 
 }

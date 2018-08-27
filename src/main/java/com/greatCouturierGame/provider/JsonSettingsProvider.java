@@ -1,14 +1,16 @@
 package com.greatCouturierGame.provider;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.greatCouturierGame.Main;
-import com.greatCouturierGame.data.Settings;
+import com.greatCouturierGame.data.AppSettings;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
 
 public class JsonSettingsProvider implements SettingsProvider {
 
+    private static final Logger logger = LogManager.getLogger(JsonSettingsProvider.class);
     private String fileName;
 
     public JsonSettingsProvider(String fileName) {
@@ -16,38 +18,40 @@ public class JsonSettingsProvider implements SettingsProvider {
     }
 
     @Override
-    public Settings getSettings() {
+    public AppSettings getSettings() {
         File settingsFile = new File(this.fileName);
-        Settings settings;
+        AppSettings appSettings;
         try {
             if (!settingsFile.exists()) {
                 JsonSettingsProvider.createDefaultSettingsFile(this.fileName);
-                return Settings.getDefault();
+                return AppSettings.getDefault();
             }
 
-            Main.logger.info("Settings file found successfully");
+            logger.info("AppSettings file successfully found");
             ObjectMapper mapper = new ObjectMapper();
-            settings = mapper.readValue(settingsFile, Settings.class);
+            appSettings = mapper.readValue(settingsFile, AppSettings.class);
         } catch (IOException e) {
-            Main.logger.fatal("Bad settings file");
-            settings = Settings.getDefault();
+            logger.fatal("Bad appSettings file");
+            appSettings = AppSettings.getDefault();
         }
 
-        return settings;
+        return appSettings;
     }
 
     @Override
-    public void saveSettings(Settings settings) throws IOException {
+    public void saveSettings(AppSettings appSettings) throws IOException {
         File settingsFile = new File(this.fileName);
-        new ObjectMapper().writeValue(settingsFile, settings);
+        new ObjectMapper().writerWithDefaultPrettyPrinter()
+                .writeValue(settingsFile, appSettings);
 
-        Main.logger.info("Settings file saved successfully");
+        logger.info("AppSettings file successfully saved");
     }
 
     protected static void createDefaultSettingsFile(String fileName) throws IOException {
         File settingsFile = new File(fileName);
-        new ObjectMapper().writeValue(settingsFile, Settings.getDefault());
+        new ObjectMapper().writerWithDefaultPrettyPrinter()
+                .writeValue(settingsFile, AppSettings.getDefault());
 
-        Main.logger.info("Settings file created successfully");
+        logger.info("AppSettings file successfully created");
     }
 }

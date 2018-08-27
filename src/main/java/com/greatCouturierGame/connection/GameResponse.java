@@ -13,7 +13,7 @@ public class GameResponse {
     private static final Logger logger = LogManager.getLogger(GameResponse.class);
 
     private Map<String, String> responseMap;
-    
+
     public GameResponse() {
         this.responseMap = new HashMap<>();
     }

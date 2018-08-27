@@ -3,7 +3,6 @@ package com.greatCouturierGame.connection;
 import java.util.Map;
 
 public interface QueryParser {
-
     String getParameter(String parameter);
 
     Map<String, String> getParameters(String... parameters);
@@ -23,5 +22,4 @@ public interface QueryParser {
 
         return queryType;
     }
-
 }

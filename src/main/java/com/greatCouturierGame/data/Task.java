@@ -23,7 +23,8 @@ public final class Task {
                 new Task("1", 602000),
                 new Task("3", 3602000),
                 new Task("6", 14401000),
-                new Task("15", 28801000)
+                new Task("10", 28801000),
+                new Task("15", 57601000)
         };
     }
 

@@ -1,10 +1,10 @@
 package com.greatCouturierGame.provider;
 
-import com.greatCouturierGame.data.Settings;
+import com.greatCouturierGame.data.AppSettings;
 
 import java.io.IOException;
 
 public interface SettingsProvider {
-    Settings getSettings();
-    void saveSettings(Settings settings) throws IOException;
+    AppSettings getSettings();
+    void saveSettings(AppSettings appSettings) throws IOException;
 }

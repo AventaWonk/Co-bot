@@ -4,24 +4,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class Wear {
+public final class Wear {
 
     public enum Parameters {
         TEXTURE,
         COLOR,
         TEXTURE_COLOR,
         SECOND_TEXTURE,
-        SECOND_TEXTURECOLOR
+        SECOND_TEXTURE_COLOR
     }
 
-    private int wearType;
-    private int wearColor;
-    private int wearTexture;
-    private int wearTextureColor;
-    private int wearTexture2;
-    private int wearTextureColor2;
-    private int wearTextureParams;
-    private int wearTextureParams2;
+    private final int wearType;
+    private final int wearColor;
+    private final int wearTexture;
+    private final int wearTextureColor;
+    private final int wearTexture2;
+    private final int wearTextureColor2;
+    private final int wearTextureParams;
+    private final int wearTextureParams2;
 
     private Wear(Builder builder) {
         this.wearType = builder.wearType;
@@ -99,6 +99,7 @@ public class Wear {
     }
 
     public static class Builder {
+
         private int wearType;
         private int wearColor;
         private int wearTexture;
@@ -158,5 +159,7 @@ public class Wear {
         public Wear build() {
             return new Wear(this);
         }
+
     }
+
 }

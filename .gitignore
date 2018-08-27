@@ -2,3 +2,7 @@ out/
 .*/
 *.log
 *.iml
+target/
+accounts.txt
+appSettings.json
+
